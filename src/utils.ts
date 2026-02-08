@@ -46,6 +46,22 @@ export function logStatus(status: 'passed' | 'failed' | 'warning', detail?: stri
   console.log(msg);
 }
 
+export function parsePauseStep(action: string): string | null {
+  const trimmed = action.trim();
+  if (/^pause$/i.test(trimmed)) {
+    return 'Paused. Press Enter to continue...';
+  }
+  const quotedMatch = trimmed.match(/^pause\s+["'](.+)["']$/i);
+  if (quotedMatch) {
+    return quotedMatch[1];
+  }
+  const unquotedMatch = trimmed.match(/^pause\s+(.+)$/i);
+  if (unquotedMatch) {
+    return unquotedMatch[1];
+  }
+  return null;
+}
+
 export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')

@@ -1,6 +1,6 @@
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import type { JourneyResult, StepResult } from './types.js';
+import type { JourneyResult, StepResult, SuiteResult } from './types.js';
 import { escapeHtml } from './utils.js';
 
 const REPORT_CSS = `
@@ -62,7 +62,7 @@ const REPORT_CSS = `
   .footer { text-align: center; padding: 2rem; color: #999; font-size: 0.8rem; }
 `;
 
-function renderStep(step: StepResult, index: number): string {
+export function renderStep(step: StepResult, index: number): string {
   const issuesHtml = step.interpretation.uxAnalysis.issues.map(issue => `
     <div class="ux-issue ${escapeHtml(issue.severity)}">
       <span class="severity-badge">${escapeHtml(issue.severity)}</span>
@@ -197,6 +197,145 @@ export function generateReport(result: JourneyResult, outputDir: string): string
 
   <div class="footer">
     Generated ${result.completedAt} | AI Journey Tester
+  </div>
+
+  <script>
+    document.querySelectorAll('.step-header').forEach(header => {
+      header.addEventListener('click', () => {
+        header.parentElement.classList.toggle('collapsed');
+      });
+    });
+  </script>
+</body>
+</html>`;
+
+  writeFileSync(outputPath, html);
+  return outputPath;
+}
+
+const SUITE_TABLE_CSS = `
+  .journey-table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+  .journey-table th, .journey-table td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid #e0e0e0; }
+  .journey-table th { background: #f5f5f5; font-size: 0.8rem; text-transform: uppercase; color: #666; }
+  .journey-table tr:hover { background: #fafafa; }
+  .journey-section { margin-bottom: 2rem; }
+  .journey-section h2 { font-size: 1.2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #e0e0e0; }
+  .journey-section .journey-meta { font-size: 0.85rem; color: #666; margin-bottom: 1rem; }
+  details.journey-details { margin-bottom: 1.5rem; }
+  details.journey-details summary { cursor: pointer; font-weight: 500; padding: 0.5rem 0; }
+`;
+
+export function generateSuiteReport(result: SuiteResult, outputDir: string): string {
+  mkdirSync(outputDir, { recursive: true });
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const safeName = result.suite.name.replace(/[^a-zA-Z0-9-_]/g, '_').toLowerCase();
+  const filename = `suite_${safeName}_${timestamp}.html`;
+  const outputPath = join(outputDir, filename);
+
+  // Journey summary table rows
+  const tableRows = result.journeyResults.map((jr, i) => {
+    const uxScore = jr.summary.overallUXScore > 0 ? `${jr.summary.overallUXScore}/10` : '-';
+    const duration = `${(jr.totalDurationMs / 1000).toFixed(1)}s`;
+    return `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${escapeHtml(jr.journey.name)}</td>
+        <td><span class="badge ${escapeHtml(jr.status)}">${escapeHtml(jr.status)}</span></td>
+        <td>${jr.summary.passed}/${jr.summary.totalSteps}</td>
+        <td>${uxScore}</td>
+        <td>${duration}</td>
+      </tr>`;
+  }).join('\n');
+
+  // Per-journey expandable sections
+  const journeySections = result.journeyResults.map((jr, i) => {
+    const stepsHtml = jr.steps.map((step, si) => renderStep(step, si)).join('\n');
+    return `
+    <details class="journey-details">
+      <summary>${i + 1}. ${escapeHtml(jr.journey.name)} - <span class="badge ${escapeHtml(jr.status)}">${escapeHtml(jr.status)}</span></summary>
+      <div class="journey-meta">
+        URL: ${escapeHtml(jr.journey.url)} | Steps: ${jr.summary.totalSteps} | Duration: ${(jr.totalDurationMs / 1000).toFixed(1)}s | UX Score: ${jr.summary.overallUXScore}/10
+      </div>
+      ${stepsHtml}
+    </details>`;
+  }).join('\n');
+
+  const totalSteps = result.journeyResults.reduce((sum, r) => sum + r.summary.totalSteps, 0);
+  const totalPassed = result.journeyResults.reduce((sum, r) => sum + r.summary.passed, 0);
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suite Report: ${escapeHtml(result.suite.name)}</title>
+  <style>${REPORT_CSS}${SUITE_TABLE_CSS}</style>
+</head>
+<body>
+  <header>
+    <h1>Suite: ${escapeHtml(result.suite.name)}</h1>
+    ${result.suite.description ? `<p class="description">${escapeHtml(result.suite.description)}</p>` : ''}
+    <div class="summary">
+      <div class="stat ${result.status}">
+        <span class="label">Status</span>
+        <span class="value">${result.status.toUpperCase()}</span>
+      </div>
+      <div class="stat">
+        <span class="label">Journeys</span>
+        <span class="value">${result.summary.totalJourneys}</span>
+      </div>
+      <div class="stat passed">
+        <span class="label">Passed</span>
+        <span class="value">${result.summary.passed}</span>
+      </div>
+      <div class="stat failed">
+        <span class="label">Failed</span>
+        <span class="value">${result.summary.failed}</span>
+      </div>
+      <div class="stat">
+        <span class="label">Total Steps</span>
+        <span class="value">${totalSteps}</span>
+      </div>
+      <div class="stat">
+        <span class="label">Steps Passed</span>
+        <span class="value">${totalPassed}</span>
+      </div>
+      <div class="stat">
+        <span class="label">UX Score</span>
+        <span class="value">${result.summary.overallUXScore}/10</span>
+      </div>
+      <div class="stat">
+        <span class="label">Duration</span>
+        <span class="value">${(result.totalDurationMs / 1000).toFixed(1)}s</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <h2>Journey Summary</h2>
+    <table class="journey-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Journey</th>
+          <th>Status</th>
+          <th>Steps Passed</th>
+          <th>UX Score</th>
+          <th>Duration</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${tableRows}
+      </tbody>
+    </table>
+
+    <h2>Journey Details</h2>
+    ${journeySections}
+  </main>
+
+  <div class="footer">
+    Generated ${result.completedAt} | AI Journey Tester - Suite Report
   </div>
 
   <script>

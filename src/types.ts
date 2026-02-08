@@ -7,6 +7,7 @@ export interface JourneyDefinition {
   description?: string;
   url: string;
   viewport?: { width: number; height: number };
+  variables?: Record<string, string>;
   steps: JourneyStep[];
 }
 
@@ -129,4 +130,38 @@ export interface CLIOptions {
   baseUrl?: string;
   retries?: number;
   delay?: number;
+  vars?: Record<string, string>;
+}
+
+// ============================================================
+// Suite Definition (parsed from YAML)
+// ============================================================
+
+export interface SuiteDefinition {
+  name: string;
+  description?: string;
+  variables?: Record<string, string>;
+  journeys: SuiteJourneyRef[];
+}
+
+export interface SuiteJourneyRef {
+  path: string;
+  variables?: Record<string, string>;
+}
+
+export interface SuiteResult {
+  suite: SuiteDefinition;
+  startedAt: string;
+  completedAt: string;
+  totalDurationMs: number;
+  status: 'passed' | 'failed' | 'warning';
+  journeyResults: JourneyResult[];
+  summary: {
+    totalJourneys: number;
+    passed: number;
+    failed: number;
+    warnings: number;
+    totalSteps: number;
+    overallUXScore: number;
+  };
 }

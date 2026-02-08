@@ -1,7 +1,18 @@
+import { createInterface } from 'readline';
 import type { JourneyDefinition, CLIOptions, JourneyResult, StepResult } from './types.js';
 import { launchBrowser, capturePageState, executeBrowserAction, type BrowserSession } from './browser.js';
 import { interpretStep } from './ai.js';
-import { log, logStep, logStatus } from './utils.js';
+import { log, logStep, logStatus, parsePauseStep } from './utils.js';
+
+function waitForEnter(message: string): Promise<void> {
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(`\n  PAUSE: ${message}\n  Press Enter to continue...`, () => {
+      rl.close();
+      resolve();
+    });
+  });
+}
 
 export async function executeJourney(
   journey: JourneyDefinition,
@@ -26,6 +37,31 @@ export async function executeJourney(
     const maxRetries = options.retries ?? 1;
 
     logStep(i, journey.steps.length, step.action);
+
+    // Check for pause step before doing anything else
+    const pauseMessage = parsePauseStep(step.action);
+    if (pauseMessage !== null) {
+      const pageStateBefore = await capturePageState(session);
+      await waitForEnter(pauseMessage);
+      const pageStateAfter = await capturePageState(session);
+
+      results.push({
+        stepIndex: i,
+        action: step.action,
+        status: 'passed',
+        interpretation: {
+          thinking: 'Manual pause step',
+          actions: [],
+          uxAnalysis: { score: 0, issues: [], positives: [] },
+        },
+        pageStateBefore,
+        pageStateAfter,
+        durationMs: 0,
+      });
+
+      logStatus('passed', 'Manual step completed');
+      continue;
+    }
 
     let result: StepResult | null = null;
 

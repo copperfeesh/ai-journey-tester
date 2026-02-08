@@ -5,7 +5,9 @@ import { createInterface } from 'readline';
 import { Command } from 'commander';
 import { loadJourney } from './journey-loader.js';
 import { executeJourney } from './executor.js';
-import { generateReport } from './reporter.js';
+import { generateReport, generateSuiteReport } from './reporter.js';
+import { loadSuite } from './suite-loader.js';
+import { executeSuite } from './suite-runner.js';
 import { setVerbose } from './utils.js';
 import type { CLIOptions, JourneyDefinition } from './types.js';
 
@@ -21,6 +23,15 @@ function promptUser(question: string): Promise<string> {
     if (result.done) return '';
     return result.value.trim();
   });
+}
+
+function collectVar(value: string, prev: Record<string, string>): Record<string, string> {
+  const eqIndex = value.indexOf('=');
+  if (eqIndex === -1) {
+    throw new Error(`Invalid --var format: "${value}". Expected key=value`);
+  }
+  prev[value.slice(0, eqIndex)] = value.slice(eqIndex + 1);
+  return prev;
 }
 
 const program = new Command();
@@ -42,6 +53,7 @@ program
   .option('--verbose', 'Verbose logging', false)
   .option('--base-url <url>', 'Override the journey start URL')
   .option('--retries <count>', 'Retry count per step on failure', '1')
+  .option('--var <key=value>', 'Set a variable (repeatable)', collectVar, {})
   .action(async (journeyPath: string, opts) => {
     if (opts.verbose) {
       setVerbose(true);
@@ -57,11 +69,12 @@ program
       baseUrl: opts.baseUrl,
       retries: parseInt(opts.retries),
       delay: parseInt(opts.delay),
+      vars: Object.keys(opts.var).length > 0 ? opts.var : undefined,
     };
 
     try {
       console.log(`\nLoading journey: ${journeyPath}`);
-      const journey = loadJourney(journeyPath, options.baseUrl);
+      const journey = loadJourney(journeyPath, options.baseUrl, options.vars);
       console.log(`Journey: ${journey.name} (${journey.steps.length} steps)`);
       console.log(`Target: ${journey.url}\n`);
 
@@ -87,9 +100,11 @@ program
   .command('validate')
   .description('Validate a journey YAML file without executing')
   .argument('<journey>', 'Path to YAML journey file')
-  .action((journeyPath: string) => {
+  .option('--var <key=value>', 'Set a variable (repeatable)', collectVar, {})
+  .action((journeyPath: string, opts) => {
     try {
-      const journey = loadJourney(journeyPath);
+      const vars = Object.keys(opts.var).length > 0 ? opts.var : undefined;
+      const journey = loadJourney(journeyPath, undefined, vars);
       console.log(`Valid journey: "${journey.name}"`);
       console.log(`  URL: ${journey.url}`);
       console.log(`  Steps: ${journey.steps.length}`);
@@ -112,6 +127,7 @@ program
   .option('--timeout <ms>', 'Default timeout per step in ms', '30000')
   .option('--verbose', 'Verbose logging', false)
   .option('--retries <count>', 'Retry count per step on failure', '1')
+  .option('--var <key=value>', 'Set a variable (repeatable)', collectVar, {})
   .action(async (opts) => {
     if (opts.verbose) {
       setVerbose(true);
@@ -169,6 +185,7 @@ program
       verbose: opts.verbose,
       retries: parseInt(opts.retries),
       delay: parseInt(opts.delay),
+      vars: Object.keys(opts.var).length > 0 ? opts.var : undefined,
     };
 
     try {
@@ -185,6 +202,61 @@ program
 
       const reportPath = generateReport(result, options.output!);
       console.log(`\nReport: ${reportPath}`);
+
+      process.exit(result.status === 'failed' ? 1 : 0);
+    } catch (e) {
+      console.error(`\nError: ${e instanceof Error ? e.message : String(e)}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('suite')
+  .description('Execute a test suite (multiple journeys)')
+  .argument('<path>', 'Path to YAML suite file')
+  .option('--headed', 'Run in headed mode (show browser)', false)
+  .option('--model <model>', 'Claude model to use', 'claude-haiku-4-5-20251001')
+  .option('--delay <seconds>', 'Delay between steps in seconds (rate limit friendly)', '10')
+  .option('--output <dir>', 'Report output directory', './reports')
+  .option('--timeout <ms>', 'Default timeout per step in ms', '30000')
+  .option('--verbose', 'Verbose logging', false)
+  .option('--base-url <url>', 'Override the journey start URL')
+  .option('--retries <count>', 'Retry count per step on failure', '1')
+  .option('--var <key=value>', 'Set a variable (repeatable)', collectVar, {})
+  .action(async (suitePath: string, opts) => {
+    if (opts.verbose) {
+      setVerbose(true);
+    }
+
+    const options: CLIOptions = {
+      journey: suitePath,
+      headed: opts.headed,
+      model: opts.model,
+      output: opts.output,
+      timeout: parseInt(opts.timeout),
+      verbose: opts.verbose,
+      baseUrl: opts.baseUrl,
+      retries: parseInt(opts.retries),
+      delay: parseInt(opts.delay),
+      vars: Object.keys(opts.var).length > 0 ? opts.var : undefined,
+    };
+
+    try {
+      console.log(`\nLoading suite: ${suitePath}`);
+      const suite = loadSuite(suitePath);
+      console.log(`Suite: ${suite.name} (${suite.journeys.length} journeys)`);
+
+      const result = await executeSuite(suite, options);
+
+      console.log('\n\n=== Suite Summary ===');
+      console.log(`Status: ${result.status.toUpperCase()}`);
+      console.log(`Journeys: ${result.summary.passed} passed, ${result.summary.failed} failed, ${result.summary.warnings} warnings`);
+      console.log(`Total Steps: ${result.summary.totalSteps}`);
+      console.log(`UX Score: ${result.summary.overallUXScore}/10`);
+      console.log(`Duration: ${(result.totalDurationMs / 1000).toFixed(1)}s`);
+
+      const reportPath = generateSuiteReport(result, options.output!);
+      console.log(`\nSuite Report: ${reportPath}`);
 
       process.exit(result.status === 'failed' ? 1 : 0);
     } catch (e) {
