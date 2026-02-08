@@ -97,7 +97,7 @@ steps:
   - action: Verify a welcome message appears
 ```
 
-Steps are plain English — the AI interprets them and drives the browser.
+Steps are plain English — the AI interprets them and drives the browser. The AI can click, type, scroll, navigate, assert visibility, and wait for dynamic content to appear or disappear.
 
 ### Variables
 
@@ -127,7 +127,10 @@ steps:
     timeout: 60000      # step-specific timeout in ms
     waitAfter: 2000     # wait after step completes in ms
   - action: pause "Check the page manually"   # pauses for manual inspection
+  - action: Wait for the search results to appear  # waits for dynamic content
 ```
+
+For pages with dynamic content (AJAX, SPAs), write steps like "Wait for the results to load" or "Wait for the spinner to disappear". The AI uses Playwright's `waitFor()` under the hood, polling until the element reaches the desired state or the step times out.
 
 ## Writing Suite Files
 
@@ -154,6 +157,7 @@ Suite-level variables are inherited by all journeys. Per-journey variables take 
 |---|---|---|
 | `--headed` | `false` | Show the browser window |
 | `--model <model>` | `claude-haiku-4-5-20251001` | Claude model to use |
+| `--fallback-model <model>` | — | Fallback model if primary fails (see [Model Fallback](#model-fallback)) |
 | `--delay <seconds>` | `10` | Delay between steps (rate limit friendly) |
 | `--output <dir>` | `./reports` | Report output directory |
 | `--timeout <ms>` | `30000` | Timeout per step |
@@ -162,6 +166,61 @@ Suite-level variables are inherited by all journeys. Per-journey variables take 
 | `--base-url <url>` | — | Override the journey start URL (run/suite) |
 | `--var <key=value>` | — | Set a variable, repeatable |
 | `--port <port>` | `3000` | Port for the web UI (ui only) |
+
+## Model Fallback
+
+If the primary model (e.g. Haiku) fails after all retries, a fallback model gets a second chance before the step errors out. This is useful when a cheaper/faster model handles most steps, but occasionally needs a smarter model for complex pages.
+
+Set it via CLI:
+
+```bash
+npx tsx src/cli.ts run journeys/example.yaml --fallback-model claude-sonnet-4-5-20250929
+```
+
+Or in `.journeytester.yaml`:
+
+```yaml
+model: claude-haiku-4-5-20251001
+fallbackModel: claude-sonnet-4-5-20250929
+```
+
+When the primary model fails, you'll see:
+
+```
+  Primary model (claude-haiku-4-5-20251001) failed, trying fallback: claude-sonnet-4-5-20250929
+```
+
+## Shared Browser Sessions (Suites)
+
+By default, each journey in a suite gets a fresh browser — cookies and login state are not preserved. Set `sharedSession: true` to reuse a single browser context across all journeys in the suite:
+
+```yaml
+name: Authenticated Flow
+sharedSession: true
+
+journeys:
+  - path: ../journeys/login.yaml
+  - path: ../journeys/dashboard.yaml      # inherits login cookies
+  - path: ../journeys/update-profile.yaml  # still logged in
+```
+
+This is useful for testing flows that depend on authentication or multi-step state that spans multiple journey files.
+
+## Configuration File
+
+Create a `.journeytester.yaml` in your project root to set defaults for all commands:
+
+```yaml
+model: claude-haiku-4-5-20251001
+fallbackModel: claude-sonnet-4-5-20250929
+delay: 10
+timeout: 30000
+retries: 1
+outputDir: ./reports
+headed: false
+```
+
+CLI options override config file values when both are provided.
 
 ## Reports
 
