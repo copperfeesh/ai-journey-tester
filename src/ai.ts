@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { PageState, JourneyStep, AIStepInterpretation, BrowserAction, UXIssue } from './types.js';
 import { withRetry, log } from './utils.js';
+import { getConfig } from './config.js';
 
 const client = new Anthropic();
 
@@ -200,7 +201,7 @@ export async function interpretStep(
     });
 
     const response = await client.messages.create({
-      model: model ?? 'claude-haiku-4-5-20251001',
+      model: model ?? getConfig().model,
       max_tokens: 2048,
       system: SYSTEM_PROMPT,
       tools: TOOLS,

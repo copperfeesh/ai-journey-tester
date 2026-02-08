@@ -42,7 +42,11 @@ export async function executeJourney(
     const pauseMessage = parsePauseStep(step.action);
     if (pauseMessage !== null) {
       const pageStateBefore = await capturePageState(session);
-      await waitForEnter(pauseMessage);
+      if (process.stdin.isTTY) {
+        await waitForEnter(pauseMessage);
+      } else {
+        console.log(`  PAUSE (auto-skipped, no TTY): ${pauseMessage}`);
+      }
       const pageStateAfter = await capturePageState(session);
 
       results.push({

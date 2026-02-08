@@ -2,10 +2,10 @@ import { resolve, join } from 'path';
 import { loadJourney } from './journey-loader.js';
 import { executeJourney } from './executor.js';
 import { generateReport } from './reporter.js';
+import { getConfig } from './config.js';
 import type { CLIOptions } from './types.js';
 
 const JOURNEYS_DIR = resolve('journeys');
-const REPORTS_DIR = resolve('reports');
 const MAX_JOBS = 50;
 
 export interface RunJob {
@@ -63,18 +63,20 @@ export function startJourneyRun(filename: string): string {
       const filePath = join(JOURNEYS_DIR, filename);
       const journey = loadJourney(filePath);
 
+      const cfg = getConfig();
+      const reportsDir = resolve(cfg.outputDir);
       const options: CLIOptions = {
         journey: filePath,
-        headed: false,
-        model: 'claude-haiku-4-5-20251001',
-        output: REPORTS_DIR,
-        timeout: 30000,
-        retries: 1,
-        delay: 10,
+        headed: cfg.headed,
+        model: cfg.model,
+        output: reportsDir,
+        timeout: cfg.timeout,
+        retries: cfg.retries,
+        delay: cfg.delay,
       };
 
       const result = await executeJourney(journey, options);
-      const reportPath = generateReport(result, REPORTS_DIR);
+      const reportPath = generateReport(result, reportsDir);
       const reportFilename = reportPath.split('/').pop()!;
 
       job.status = 'completed';

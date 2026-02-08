@@ -5,10 +5,11 @@ import * as yaml from 'yaml';
 import { dashboardPage, journeyFormPage, suiteFormPage } from './ui-templates.js';
 import { validateJourneyData, validateSuiteData } from './validation.js';
 import { startJourneyRun, getJob, getActiveRun } from './run-manager.js';
+import { getConfig } from './config.js';
 
 const JOURNEYS_DIR = resolve('journeys');
 const SUITES_DIR = resolve('suites');
-const REPORTS_DIR = resolve('reports');
+const REPORTS_DIR = resolve(getConfig().outputDir);
 
 // ── Helpers ──────────────────────────────────────────────────────────
 

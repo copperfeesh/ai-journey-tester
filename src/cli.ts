@@ -9,6 +9,7 @@ import { generateReport, generateSuiteReport } from './reporter.js';
 import { loadSuite } from './suite-loader.js';
 import { executeSuite } from './suite-runner.js';
 import { setVerbose } from './utils.js';
+import { loadConfig, getConfig } from './config.js';
 import type { CLIOptions, JourneyDefinition } from './types.js';
 
 let _lines: AsyncIterableIterator<string> | null = null;
@@ -34,6 +35,8 @@ function collectVar(value: string, prev: Record<string, string>): Record<string,
   return prev;
 }
 
+loadConfig();
+
 const program = new Command();
 
 program
@@ -45,14 +48,14 @@ program
   .command('run')
   .description('Execute a journey test')
   .argument('<journey>', 'Path to YAML journey file')
-  .option('--headed', 'Run in headed mode (show browser)', false)
-  .option('--model <model>', 'Claude model to use', 'claude-haiku-4-5-20251001')
-  .option('--delay <seconds>', 'Delay between steps in seconds (rate limit friendly)', '10')
-  .option('--output <dir>', 'Report output directory', './reports')
-  .option('--timeout <ms>', 'Default timeout per step in ms', '30000')
+  .option('--headed', 'Run in headed mode (show browser)', getConfig().headed)
+  .option('--model <model>', 'Claude model to use', getConfig().model)
+  .option('--delay <seconds>', 'Delay between steps in seconds (rate limit friendly)', String(getConfig().delay))
+  .option('--output <dir>', 'Report output directory', getConfig().outputDir)
+  .option('--timeout <ms>', 'Default timeout per step in ms', String(getConfig().timeout))
   .option('--verbose', 'Verbose logging', false)
   .option('--base-url <url>', 'Override the journey start URL')
-  .option('--retries <count>', 'Retry count per step on failure', '1')
+  .option('--retries <count>', 'Retry count per step on failure', String(getConfig().retries))
   .option('--var <key=value>', 'Set a variable (repeatable)', collectVar, {})
   .action(async (journeyPath: string, opts) => {
     if (opts.verbose) {
@@ -120,13 +123,13 @@ program
 program
   .command('interactive')
   .description('Interactively build and run a journey test')
-  .option('--headed', 'Run in headed mode (show browser)', false)
-  .option('--model <model>', 'Claude model to use', 'claude-haiku-4-5-20251001')
-  .option('--delay <seconds>', 'Delay between steps in seconds (rate limit friendly)', '10')
-  .option('--output <dir>', 'Report output directory', './reports')
-  .option('--timeout <ms>', 'Default timeout per step in ms', '30000')
+  .option('--headed', 'Run in headed mode (show browser)', getConfig().headed)
+  .option('--model <model>', 'Claude model to use', getConfig().model)
+  .option('--delay <seconds>', 'Delay between steps in seconds (rate limit friendly)', String(getConfig().delay))
+  .option('--output <dir>', 'Report output directory', getConfig().outputDir)
+  .option('--timeout <ms>', 'Default timeout per step in ms', String(getConfig().timeout))
   .option('--verbose', 'Verbose logging', false)
-  .option('--retries <count>', 'Retry count per step on failure', '1')
+  .option('--retries <count>', 'Retry count per step on failure', String(getConfig().retries))
   .option('--var <key=value>', 'Set a variable (repeatable)', collectVar, {})
   .action(async (opts) => {
     if (opts.verbose) {
@@ -214,14 +217,14 @@ program
   .command('suite')
   .description('Execute a test suite (multiple journeys)')
   .argument('<path>', 'Path to YAML suite file')
-  .option('--headed', 'Run in headed mode (show browser)', false)
-  .option('--model <model>', 'Claude model to use', 'claude-haiku-4-5-20251001')
-  .option('--delay <seconds>', 'Delay between steps in seconds (rate limit friendly)', '10')
-  .option('--output <dir>', 'Report output directory', './reports')
-  .option('--timeout <ms>', 'Default timeout per step in ms', '30000')
+  .option('--headed', 'Run in headed mode (show browser)', getConfig().headed)
+  .option('--model <model>', 'Claude model to use', getConfig().model)
+  .option('--delay <seconds>', 'Delay between steps in seconds (rate limit friendly)', String(getConfig().delay))
+  .option('--output <dir>', 'Report output directory', getConfig().outputDir)
+  .option('--timeout <ms>', 'Default timeout per step in ms', String(getConfig().timeout))
   .option('--verbose', 'Verbose logging', false)
   .option('--base-url <url>', 'Override the journey start URL')
-  .option('--retries <count>', 'Retry count per step on failure', '1')
+  .option('--retries <count>', 'Retry count per step on failure', String(getConfig().retries))
   .option('--var <key=value>', 'Set a variable (repeatable)', collectVar, {})
   .action(async (suitePath: string, opts) => {
     if (opts.verbose) {
