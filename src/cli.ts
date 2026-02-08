@@ -265,4 +265,13 @@ program
     }
   });
 
+program
+  .command('ui')
+  .description('Start the web UI for managing journeys and suites')
+  .option('--port <port>', 'Port to serve on', '3000')
+  .action(async (opts) => {
+    const { startUIServer } = await import('./ui-server.js');
+    startUIServer(parseInt(opts.port));
+  });
+
 program.parse();
