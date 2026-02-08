@@ -1,0 +1,11 @@
+name: Shared Session Test
+description: Tests that sharedSession preserves browser context between journeys
+sharedSession: true
+variables:
+  base_url: https://en.wikipedia.org
+
+journeys:
+  - path: ../journeys/variables-test.yaml
+    variables:
+      search_term: artificial intelligence
+  - path: ../journeys/quick-test.yaml
