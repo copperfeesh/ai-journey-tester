@@ -182,6 +182,26 @@ function resolveSelector(page: Page, selector: string) {
     return page.locator(selector.slice(4));
   }
 
+  // Handle ARIA snapshot-style selectors from AI:
+  // link "(Top)", button "Submit", link "text=(Top)", heading "Title"
+  const ariaMatch = selector.match(/^(\w+)\s+"(.+)"$/);
+  if (ariaMatch) {
+    let [, tag, name] = ariaMatch;
+    // Strip "text=" prefix if AI included it inside quotes
+    if (name.startsWith('text=')) name = name.slice(5);
+    const roleMap: Record<string, string> = {
+      link: 'link', button: 'button', heading: 'heading',
+      input: 'textbox', a: 'link', h1: 'heading', h2: 'heading',
+      checkbox: 'checkbox', radio: 'radio', tab: 'tab',
+      listitem: 'listitem', menuitem: 'menuitem',
+    };
+    const role = roleMap[tag];
+    if (role) {
+      return page.getByRole(role as any, { name });
+    }
+    return page.getByText(name);
+  }
+
   // Handle Haiku's common non-standard formats:
   // link[text="Insure"], button[text="Submit"], etc.
   const tagTextMatch = selector.match(/^(\w+)\[text="(.+)"\]$/);
