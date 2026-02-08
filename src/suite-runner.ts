@@ -2,6 +2,7 @@ import type { SuiteDefinition, SuiteResult, JourneyResult, CLIOptions } from './
 import { resolveVariables } from './variables.js';
 import { loadJourney } from './journey-loader.js';
 import { executeJourney } from './executor.js';
+import { launchBrowser, type BrowserSession } from './browser.js';
 
 export async function executeSuite(
   suite: SuiteDefinition,
@@ -12,6 +13,12 @@ export async function executeSuite(
 
   // Resolve suite-level variables (YAML + CLI overrides + env expansion)
   const suiteVars = resolveVariables(suite.variables, options.vars);
+
+  // Create shared browser session if configured
+  let sharedSession: BrowserSession | undefined;
+  if (suite.sharedSession) {
+    sharedSession = await launchBrowser(options.headed ?? false, { width: 1280, height: 720 });
+  }
 
   const journeyResults: JourneyResult[] = [];
 
@@ -27,7 +34,7 @@ export async function executeSuite(
       console.log(`  Name: ${journey.name} (${journey.steps.length} steps)`);
       console.log(`  URL: ${journey.url}`);
 
-      const result = await executeJourney(journey, options);
+      const result = await executeJourney(journey, options, sharedSession);
       journeyResults.push(result);
 
       console.log(`  Result: ${result.status.toUpperCase()} (${result.summary.passed}/${result.summary.totalSteps} passed)`);
@@ -57,6 +64,10 @@ export async function executeSuite(
         },
       });
     }
+  }
+
+  if (sharedSession) {
+    await sharedSession.browser.close();
   }
 
   return buildSuiteResult(suite, journeyResults, startedAt, startTime);

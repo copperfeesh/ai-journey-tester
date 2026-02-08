@@ -16,13 +16,19 @@ function waitForEnter(message: string): Promise<void> {
 
 export async function executeJourney(
   journey: JourneyDefinition,
-  options: CLIOptions
+  options: CLIOptions,
+  externalSession?: BrowserSession,
 ): Promise<JourneyResult> {
   const startedAt = new Date().toISOString();
   const startTime = Date.now();
 
   const viewport = journey.viewport ?? { width: 1280, height: 720 };
-  const session = await launchBrowser(options.headed ?? false, viewport);
+  const session = externalSession ?? await launchBrowser(options.headed ?? false, viewport);
+  if (externalSession) {
+    await externalSession.page.setViewportSize(viewport);
+    externalSession.consoleMessages.length = 0;
+    externalSession.networkErrors.length = 0;
+  }
 
   console.log(`  Navigating to ${journey.url}`);
   await session.page.goto(journey.url, {
@@ -83,7 +89,7 @@ export async function executeJourney(
 
         // Ask Claude to interpret the step
         console.log('  Analyzing page and interpreting step...');
-        const interpretation = await interpretStep(step, pageStateBefore, options.model);
+        const interpretation = await interpretStep(step, pageStateBefore, options.model, options.fallbackModel);
         log(`Claude returned ${interpretation.actions.length} action(s)`);
 
         // Execute each action
@@ -181,7 +187,9 @@ export async function executeJourney(
     }
   }
 
-  await session.browser.close();
+  if (!externalSession) {
+    await session.browser.close();
+  }
 
   return buildJourneyResult(journey, results, startedAt, startTime);
 }

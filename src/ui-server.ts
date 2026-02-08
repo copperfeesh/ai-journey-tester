@@ -81,6 +81,7 @@ interface SuiteData {
   description?: string;
   variables?: Record<string, string>;
   journeys: Array<{ path: string; variables?: Record<string, string> }>;
+  sharedSession?: boolean;
 }
 
 /** Use string shorthand for steps that only have an action */
@@ -208,6 +209,7 @@ export function startUIServer(port: number): void {
         description: raw.description ? String(raw.description) : undefined,
         variables: raw.variables as Record<string, string> | undefined,
         journeys: expandJourneyRefs(Array.isArray(raw.journeys) ? raw.journeys : []),
+        sharedSession: raw.sharedSession === true ? true : undefined,
       };
       const journeyFiles = listYamlFiles(JOURNEYS_DIR);
       res.send(suiteFormPage(suite, filename, journeyFiles));
@@ -411,6 +413,7 @@ function buildJourneyYaml(data: Record<string, unknown>): Record<string, unknown
 function buildSuiteYaml(data: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { name: data.name };
   if (data.description) out.description = data.description;
+  if (data.sharedSession === true) out.sharedSession = true;
   if (data.variables && typeof data.variables === 'object' && Object.keys(data.variables as object).length > 0) {
     out.variables = data.variables;
   }

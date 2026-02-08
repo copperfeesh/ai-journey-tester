@@ -69,6 +69,7 @@ export function startJourneyRun(filename: string): string {
         journey: filePath,
         headed: cfg.headed,
         model: cfg.model,
+        fallbackModel: cfg.fallbackModel,
         output: reportsDir,
         timeout: cfg.timeout,
         retries: cfg.retries,

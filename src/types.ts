@@ -58,7 +58,8 @@ export type BrowserAction =
   | { type: 'scroll'; direction: 'up' | 'down'; amount?: number; description: string }
   | { type: 'hover'; selector: string; description: string }
   | { type: 'assert_visible'; text: string; description: string }
-  | { type: 'assert_text'; text: string; description: string };
+  | { type: 'assert_text'; text: string; description: string }
+  | { type: 'wait_for'; text: string; state: 'visible' | 'hidden'; description: string };
 
 export interface AIStepInterpretation {
   thinking: string;
@@ -131,6 +132,7 @@ export interface CLIOptions {
   retries?: number;
   delay?: number;
   vars?: Record<string, string>;
+  fallbackModel?: string;
 }
 
 // ============================================================
@@ -142,6 +144,7 @@ export interface SuiteDefinition {
   description?: string;
   variables?: Record<string, string>;
   journeys: SuiteJourneyRef[];
+  sharedSession?: boolean;
 }
 
 export interface SuiteJourneyRef {

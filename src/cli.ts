@@ -50,6 +50,7 @@ program
   .argument('<journey>', 'Path to YAML journey file')
   .option('--headed', 'Run in headed mode (show browser)', getConfig().headed)
   .option('--model <model>', 'Claude model to use', getConfig().model)
+  .option('--fallback-model <model>', 'Fallback model if primary fails', getConfig().fallbackModel)
   .option('--delay <seconds>', 'Delay between steps in seconds (rate limit friendly)', String(getConfig().delay))
   .option('--output <dir>', 'Report output directory', getConfig().outputDir)
   .option('--timeout <ms>', 'Default timeout per step in ms', String(getConfig().timeout))
@@ -66,6 +67,7 @@ program
       journey: journeyPath,
       headed: opts.headed,
       model: opts.model,
+      fallbackModel: opts.fallbackModel,
       output: opts.output,
       timeout: parseInt(opts.timeout),
       verbose: opts.verbose,
@@ -125,6 +127,7 @@ program
   .description('Interactively build and run a journey test')
   .option('--headed', 'Run in headed mode (show browser)', getConfig().headed)
   .option('--model <model>', 'Claude model to use', getConfig().model)
+  .option('--fallback-model <model>', 'Fallback model if primary fails', getConfig().fallbackModel)
   .option('--delay <seconds>', 'Delay between steps in seconds (rate limit friendly)', String(getConfig().delay))
   .option('--output <dir>', 'Report output directory', getConfig().outputDir)
   .option('--timeout <ms>', 'Default timeout per step in ms', String(getConfig().timeout))
@@ -183,6 +186,7 @@ program
       journey: '(interactive)',
       headed: opts.headed,
       model: opts.model,
+      fallbackModel: opts.fallbackModel,
       output: opts.output,
       timeout: parseInt(opts.timeout),
       verbose: opts.verbose,
@@ -219,6 +223,7 @@ program
   .argument('<path>', 'Path to YAML suite file')
   .option('--headed', 'Run in headed mode (show browser)', getConfig().headed)
   .option('--model <model>', 'Claude model to use', getConfig().model)
+  .option('--fallback-model <model>', 'Fallback model if primary fails', getConfig().fallbackModel)
   .option('--delay <seconds>', 'Delay between steps in seconds (rate limit friendly)', String(getConfig().delay))
   .option('--output <dir>', 'Report output directory', getConfig().outputDir)
   .option('--timeout <ms>', 'Default timeout per step in ms', String(getConfig().timeout))
@@ -235,6 +240,7 @@ program
       journey: suitePath,
       headed: opts.headed,
       model: opts.model,
+      fallbackModel: opts.fallbackModel,
       output: opts.output,
       timeout: parseInt(opts.timeout),
       verbose: opts.verbose,

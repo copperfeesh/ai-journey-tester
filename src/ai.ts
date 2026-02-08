@@ -18,6 +18,7 @@ Rules:
 - You MUST call exactly one action tool per step
 - For verification steps (verify, check, confirm, ensure), use assert_visible
 - Pick the single most appropriate action tool for the instruction
+- For steps that need to wait for dynamic content, use wait_for
 - Also call report_ux_issues to report any UX/accessibility problems you notice`;
 
 // Simple, flat tools that Haiku can handle
@@ -121,6 +122,19 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'wait_for',
+    description: 'Wait for text or element to appear or disappear on the page. Use when content loads dynamically.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        text: { type: 'string', description: 'Text or element to wait for' },
+        state: { type: 'string', enum: ['visible', 'hidden'], description: 'Wait for visible (appear) or hidden (disappear)' },
+        thinking: { type: 'string', description: 'Why you chose this action' },
+      },
+      required: ['text', 'state', 'thinking'],
+    },
+  },
+  {
     name: 'report_ux_issues',
     description: 'Report UX, accessibility, or usability issues found on the current page',
     input_schema: {
@@ -173,105 +187,126 @@ function isVisualStep(step: JourneyStep): boolean {
   return /\b(verify|check|confirm|ensure|assert|look|visual|layout|screenshot)\b/.test(action);
 }
 
+async function callModel(
+  model: string,
+  step: JourneyStep,
+  pageState: PageState,
+): Promise<AIStepInterpretation> {
+  const includeScreenshot = isVisualStep(step);
+  log(`Sending step to Claude (${model}): "${step.action}" (screenshot: ${includeScreenshot})`);
+
+  const userContent: Anthropic.MessageParam['content'] = [];
+
+  if (includeScreenshot && pageState.screenshotBase64) {
+    userContent.push({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: 'image/jpeg',
+        data: pageState.screenshotBase64,
+      },
+    });
+  }
+
+  userContent.push({
+    type: 'text',
+    text: buildPromptText(step, pageState),
+  });
+
+  const response = await client.messages.create({
+    model,
+    max_tokens: 2048,
+    system: SYSTEM_PROMPT,
+    tools: TOOLS,
+    messages: [
+      {
+        role: 'user',
+        content: userContent,
+      },
+    ],
+  });
+
+  // Extract all tool calls from the response
+  const toolCalls = response.content.filter(
+    (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
+  );
+
+  log(`Claude returned ${toolCalls.length} tool call(s): ${toolCalls.map(t => t.name).join(', ')}`);
+
+  const actions: BrowserAction[] = [];
+  let thinking = '';
+  let uxAnalysis: AIStepInterpretation['uxAnalysis'] = { score: 5, issues: [], positives: [] };
+
+  for (const call of toolCalls) {
+    const inp = call.input as any;
+    const callThinking = inp.thinking ?? '';
+    if (callThinking) thinking = callThinking;
+
+    log(`Tool: ${call.name} -> ${JSON.stringify(inp).substring(0, 200)}`);
+
+    switch (call.name) {
+      case 'click':
+        actions.push({ type: 'click', selector: inp.selector, description: callThinking });
+        break;
+      case 'fill':
+        actions.push({ type: 'fill', selector: inp.selector, value: inp.value, description: callThinking });
+        break;
+      case 'select_option':
+        actions.push({ type: 'select', selector: inp.selector, value: inp.value, description: callThinking });
+        break;
+      case 'press_key':
+        actions.push({ type: 'press_key', key: inp.key, description: callThinking });
+        break;
+      case 'navigate':
+        actions.push({ type: 'navigate', url: inp.url, description: callThinking });
+        break;
+      case 'scroll':
+        actions.push({ type: 'scroll', direction: inp.direction ?? 'down', description: callThinking });
+        break;
+      case 'hover':
+        actions.push({ type: 'hover', selector: inp.selector, description: callThinking });
+        break;
+      case 'assert_visible':
+        actions.push({ type: 'assert_visible', text: inp.text, description: callThinking });
+        break;
+      case 'wait_for':
+        actions.push({ type: 'wait_for', text: inp.text, state: inp.state ?? 'visible', description: callThinking });
+        break;
+      case 'report_ux_issues':
+        uxAnalysis = parseUXReport(inp);
+        break;
+    }
+  }
+
+  // Also capture any text blocks as additional thinking
+  const textBlocks = response.content
+    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+    .map(b => b.text);
+  if (textBlocks.length > 0 && !thinking) {
+    thinking = textBlocks.join('\n');
+  }
+
+  return { thinking, actions, uxAnalysis };
+}
+
 export async function interpretStep(
   step: JourneyStep,
   pageState: PageState,
-  model?: string
+  model?: string,
+  fallbackModel?: string,
 ): Promise<AIStepInterpretation> {
-  return withRetry(async () => {
-    const includeScreenshot = isVisualStep(step);
-    log(`Sending step to Claude: "${step.action}" (screenshot: ${includeScreenshot})`);
+  const primaryModel = model ?? getConfig().model;
+  const fallback = fallbackModel ?? getConfig().fallbackModel;
 
-    const userContent: Anthropic.MessageParam['content'] = [];
-
-    if (includeScreenshot && pageState.screenshotBase64) {
-      userContent.push({
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: 'image/jpeg',
-          data: pageState.screenshotBase64,
-        },
-      });
+  try {
+    return await withRetry(async () => callModel(primaryModel, step, pageState));
+  } catch (primaryError) {
+    if (fallback && fallback !== primaryModel) {
+      console.log(`  Primary model (${primaryModel}) failed, trying fallback: ${fallback}`);
+      return await withRetry(async () => callModel(fallback, step, pageState), 2);
     }
-
-    userContent.push({
-      type: 'text',
-      text: buildPromptText(step, pageState),
-    });
-
-    const response = await client.messages.create({
-      model: model ?? getConfig().model,
-      max_tokens: 2048,
-      system: SYSTEM_PROMPT,
-      tools: TOOLS,
-      messages: [
-        {
-          role: 'user',
-          content: userContent,
-        },
-      ],
-    });
-
-    // Extract all tool calls from the response
-    const toolCalls = response.content.filter(
-      (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
-    );
-
-    log(`Claude returned ${toolCalls.length} tool call(s): ${toolCalls.map(t => t.name).join(', ')}`);
-
-    const actions: BrowserAction[] = [];
-    let thinking = '';
-    let uxAnalysis: AIStepInterpretation['uxAnalysis'] = { score: 5, issues: [], positives: [] };
-
-    for (const call of toolCalls) {
-      const inp = call.input as any;
-      const callThinking = inp.thinking ?? '';
-      if (callThinking) thinking = callThinking;
-
-      log(`Tool: ${call.name} -> ${JSON.stringify(inp).substring(0, 200)}`);
-
-      switch (call.name) {
-        case 'click':
-          actions.push({ type: 'click', selector: inp.selector, description: callThinking });
-          break;
-        case 'fill':
-          actions.push({ type: 'fill', selector: inp.selector, value: inp.value, description: callThinking });
-          break;
-        case 'select_option':
-          actions.push({ type: 'select', selector: inp.selector, value: inp.value, description: callThinking });
-          break;
-        case 'press_key':
-          actions.push({ type: 'press_key', key: inp.key, description: callThinking });
-          break;
-        case 'navigate':
-          actions.push({ type: 'navigate', url: inp.url, description: callThinking });
-          break;
-        case 'scroll':
-          actions.push({ type: 'scroll', direction: inp.direction ?? 'down', description: callThinking });
-          break;
-        case 'hover':
-          actions.push({ type: 'hover', selector: inp.selector, description: callThinking });
-          break;
-        case 'assert_visible':
-          actions.push({ type: 'assert_visible', text: inp.text, description: callThinking });
-          break;
-        case 'report_ux_issues':
-          uxAnalysis = parseUXReport(inp);
-          break;
-      }
-    }
-
-    // Also capture any text blocks as additional thinking
-    const textBlocks = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-      .map(b => b.text);
-    if (textBlocks.length > 0 && !thinking) {
-      thinking = textBlocks.join('\n');
-    }
-
-    return { thinking, actions, uxAnalysis };
-  });
+    throw primaryError;
+  }
 }
 
 function parseUXReport(inp: any): AIStepInterpretation['uxAnalysis'] {

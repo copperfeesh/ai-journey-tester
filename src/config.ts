@@ -9,6 +9,7 @@ export interface Config {
   retries: number;
   outputDir: string;
   headed: boolean;
+  fallbackModel?: string;
 }
 
 const DEFAULTS: Config = {
@@ -38,6 +39,7 @@ export function loadConfig(): Config {
         if (typeof raw.retries === 'number') config.retries = raw.retries;
         if (typeof raw.outputDir === 'string') config.outputDir = raw.outputDir;
         if (typeof raw.headed === 'boolean') config.headed = raw.headed;
+        if (typeof raw.fallbackModel === 'string') config.fallbackModel = raw.fallbackModel;
       }
     } catch {
       // Ignore malformed config — fall back to defaults

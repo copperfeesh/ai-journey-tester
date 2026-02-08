@@ -45,10 +45,13 @@ export function loadSuite(filePath: string): SuiteDefinition {
     ? parsed.variables as Record<string, string>
     : undefined;
 
+  const sharedSession = parsed.sharedSession === true;
+
   return {
     name: parsed.name,
     description: typeof parsed.description === 'string' ? parsed.description : undefined,
     variables,
     journeys,
+    sharedSession: sharedSession || undefined,
   };
 }

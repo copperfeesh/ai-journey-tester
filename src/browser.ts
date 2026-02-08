@@ -136,6 +136,11 @@ export async function executeBrowserAction(
 
       throw new Error(`Assertion failed: expected "${text}" to be visible on the page`);
     }
+    case 'wait_for': {
+      const locator = page.getByText(action.text).first();
+      await locator.waitFor({ state: action.state, timeout });
+      break;
+    }
     case 'assert_text': {
       const text = action.text;
       const content = await page.textContent('body') ?? '';
