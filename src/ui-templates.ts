@@ -54,74 +54,109 @@ function layout(title: string, body: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} — AI Journey Tester</title>
 <style>
+  :root {
+    /* Brand colors */
+    --brand-primary: #0066cc;
+    --brand-primary-hover: #0052a3;
+    --brand-header-bg: #1a1a2e;
+    --brand-header-text: #fff;
+    --brand-header-link: #a0c4ff;
+    --brand-success: #198754;
+    --brand-success-hover: #146c43;
+    --brand-danger: #dc3545;
+    --brand-danger-hover: #b02a37;
+
+    /* Neutral / layout */
+    --bg-page: #f5f5f5;
+    --bg-card: #fff;
+    --text-primary: #333;
+    --text-secondary: #666;
+    --text-muted: #888;
+    --border-color: #eee;
+    --border-input: #ccc;
+    --bg-secondary: #e9ecef;
+    --bg-secondary-hover: #d3d7db;
+    --bg-step: #f8f9fa;
+    --border-step: #e9ecef;
+
+    /* Focus ring */
+    --focus-ring: rgba(0, 102, 204, 0.15);
+
+    /* Badge colors */
+    --badge-journey-bg: #e8f4fd;
+    --badge-journey-text: #0066cc;
+    --badge-suite-bg: #f0e8fd;
+    --badge-suite-text: #6f42c1;
+  }
+
   *, *::before, *::after { box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-         margin: 0; padding: 0; background: #f5f5f5; color: #333; line-height: 1.5; }
-  a { color: #0066cc; text-decoration: none; }
+         margin: 0; padding: 0; background: var(--bg-page); color: var(--text-primary); line-height: 1.5; }
+  a { color: var(--brand-primary); text-decoration: none; }
   a:hover { text-decoration: underline; }
   .container { max-width: 960px; margin: 0 auto; padding: 24px; }
-  header { background: #1a1a2e; color: #fff; padding: 16px 0; margin-bottom: 24px; }
+  header { background: var(--brand-header-bg); color: var(--brand-header-text); padding: 16px 0; margin-bottom: 24px; }
   header .container { display: flex; align-items: center; justify-content: space-between; padding-top: 0; padding-bottom: 0; }
   header h1 { margin: 0; font-size: 20px; font-weight: 600; }
-  header a { color: #a0c4ff; }
-  .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 24px; margin-bottom: 24px; }
+  header a { color: var(--brand-header-link); }
+  .card { background: var(--bg-card); border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 24px; margin-bottom: 24px; }
   .card h2 { margin-top: 0; }
   table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eee; }
-  th { font-weight: 600; color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: .5px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border-color); }
+  th { font-weight: 600; color: var(--text-secondary); font-size: 13px; text-transform: uppercase; letter-spacing: .5px; }
   .actions { white-space: nowrap; }
   .actions a, .actions button { margin-right: 8px; }
   .btn { display: inline-block; padding: 8px 16px; border-radius: 6px; border: none;
          font-size: 14px; cursor: pointer; font-family: inherit; }
-  .btn-primary { background: #0066cc; color: #fff; }
-  .btn-primary:hover { background: #0052a3; text-decoration: none; }
-  .btn-danger { background: #dc3545; color: #fff; }
-  .btn-danger:hover { background: #b02a37; }
-  .btn-secondary { background: #e9ecef; color: #333; }
-  .btn-secondary:hover { background: #d3d7db; }
-  .btn-success { background: #198754; color: #fff; }
-  .btn-success:hover { background: #146c43; }
+  .btn-primary { background: var(--brand-primary); color: var(--brand-header-text); }
+  .btn-primary:hover { background: var(--brand-primary-hover); text-decoration: none; }
+  .btn-danger { background: var(--brand-danger); color: var(--brand-header-text); }
+  .btn-danger:hover { background: var(--brand-danger-hover); }
+  .btn-secondary { background: var(--bg-secondary); color: var(--text-primary); }
+  .btn-secondary:hover { background: var(--bg-secondary-hover); }
+  .btn-success { background: var(--brand-success); color: var(--brand-header-text); }
+  .btn-success:hover { background: var(--brand-success-hover); }
   .btn-sm { padding: 4px 10px; font-size: 13px; }
   label { display: block; font-weight: 600; margin-bottom: 4px; margin-top: 16px; font-size: 14px; }
   input[type="text"], input[type="number"], input[type="url"], textarea, select {
-    width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px;
+    width: 100%; padding: 8px 12px; border: 1px solid var(--border-input); border-radius: 6px;
     font-size: 14px; font-family: inherit; }
-  input:focus, textarea:focus, select:focus { outline: none; border-color: #0066cc; box-shadow: 0 0 0 3px rgba(0,102,204,.15); }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--brand-primary); box-shadow: 0 0 0 3px var(--focus-ring); }
   textarea { resize: vertical; min-height: 60px; }
   .field-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 8px; }
   .field-row input, .field-row select { flex: 1; }
-  .step-item { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 12px; margin-bottom: 8px; position: relative; }
-  .step-item .step-num { font-weight: 700; color: #666; font-size: 13px; margin-bottom: 6px; }
+  .step-item { background: var(--bg-step); border: 1px solid var(--border-step); border-radius: 6px; padding: 12px; margin-bottom: 8px; position: relative; }
+  .step-item .step-num { font-weight: 700; color: var(--text-secondary); font-size: 13px; margin-bottom: 6px; }
   .step-actions { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; }
-  .empty-state { color: #888; font-style: italic; padding: 20px; text-align: center; }
-  .form-help { font-size: 13px; color: #888; margin-top: 2px; }
-  .toast { position: fixed; top: 20px; right: 20px; background: #333; color: #fff;
+  .empty-state { color: var(--text-muted); font-style: italic; padding: 20px; text-align: center; }
+  .form-help { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .toast { position: fixed; top: 20px; right: 20px; background: var(--text-primary); color: var(--brand-header-text);
            padding: 12px 20px; border-radius: 6px; display: none; z-index: 999; }
-  .toast.error { background: #dc3545; }
-  .field-error { color: #dc3545; font-size: 13px; margin-top: 2px; }
-  .run-banner { background: #fff; border: 2px solid #0066cc; border-radius: 8px; padding: 16px 20px;
+  .toast.error { background: var(--brand-danger); }
+  .field-error { color: var(--brand-danger); font-size: 13px; margin-top: 2px; }
+  .run-banner { background: var(--bg-card); border: 2px solid var(--brand-primary); border-radius: 8px; padding: 16px 20px;
                 margin-bottom: 24px; display: none; }
   .run-banner.active { display: block; }
-  .run-banner.completed { border-color: #198754; }
-  .run-banner.failed { border-color: #dc3545; }
+  .run-banner.completed { border-color: var(--brand-success); }
+  .run-banner.failed { border-color: var(--brand-danger); }
   .run-banner-content { display: flex; align-items: center; gap: 12px; }
-  .run-spinner { width: 20px; height: 20px; border: 3px solid #e9ecef; border-top: 3px solid #0066cc;
+  .run-spinner { width: 20px; height: 20px; border: 3px solid var(--bg-secondary); border-top: 3px solid var(--brand-primary);
                  border-radius: 50%; animation: spin 1s linear infinite; flex-shrink: 0; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .run-info { flex: 1; }
   .run-info strong { font-size: 15px; }
-  .run-info .run-detail { font-size: 13px; color: #666; margin-top: 2px; }
+  .run-info .run-detail { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
   .run-actions { display: flex; gap: 8px; align-items: center; }
   .badge-type { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px;
                 font-weight: 600; text-transform: uppercase; }
-  .badge-type.journey { background: #e8f4fd; color: #0066cc; }
-  .badge-type.suite { background: #f0e8fd; color: #6f42c1; }
+  .badge-type.journey { background: var(--badge-journey-bg); color: var(--badge-journey-text); }
+  .badge-type.suite { background: var(--badge-suite-bg); color: var(--badge-suite-text); }
 </style>
 </head>
 <body>
 <header>
   <div class="container">
-    <h1><a href="/" style="color:#fff">AI Journey Tester</a></h1>
+    <h1><a href="/" style="color:var(--brand-header-text)">AI Journey Tester</a></h1>
     <nav><a href="/">Dashboard</a></nav>
   </div>
 </header>
