@@ -1,0 +1,5 @@
+name: Single Step Test
+url: https://en.wikipedia.org
+
+steps:
+  - action: Type "hello" into the search box

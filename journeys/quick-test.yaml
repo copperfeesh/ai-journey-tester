@@ -1,0 +1,7 @@
+name: Quick Wikipedia Test
+description: Quick 2-step test to verify actions are returned
+url: https://en.wikipedia.org
+
+steps:
+  - action: Type "artificial intelligence" into the search box
+  - action: Click the search button

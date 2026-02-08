@@ -1,0 +1,13 @@
+name: Wikipedia Homepage Exploration
+description: Tests basic navigation and search on Wikipedia
+url: https://en.wikipedia.org
+
+steps:
+  - action: Verify that the Wikipedia logo and search bar are visible
+  - action: Type "artificial intelligence" into the search box
+  - action: Click the search button to search
+  - action: Verify that the Artificial Intelligence article page has loaded
+  - action: Click on the first link in the article's table of contents
+    waitAfter: 1000
+  - action: Scroll down the page to see more content
+  - action: Verify that the page still displays content about Artificial Intelligence

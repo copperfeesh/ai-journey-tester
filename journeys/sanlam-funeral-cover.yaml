@@ -1,0 +1,14 @@
+name: Sanlam Funeral Cover Product Features
+description: Navigate to Sanlam Online, find the funeral cover page, and review product features
+url: https://www.sanlamonline.co.za
+
+steps:
+  - action: Verify the Sanlam Online homepage has loaded
+  - action: Click on "Insure" in the main navigation menu
+  - action: Verify the Insurance page has loaded
+  - action: Scroll down to the "Our products" section
+  - action: Click on the "Funeral Cover" product card
+    waitAfter: 3000
+  - action: Verify the Sanlam Funeral Cover page has loaded
+  - action: Scroll down to see the product features and benefits listed under "Why choose Sanlam Funeral Cover?"
+  - action: Verify that product features like "Triple accident cover" and "Grocery cover" are visible
