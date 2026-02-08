@@ -1,0 +1,6 @@
+name: sanlamonline-contact-us
+description: Testing the Sanlam Online Contact us form.
+url: https://www.sanlamonline.co.za/
+steps:
+  - Open the site and find the contact us page
+  - Find the contact us form and submit using random user and email and phone details
