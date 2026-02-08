@@ -1,11 +1,14 @@
-import { readFileSync, writeFileSync, readdirSync, unlinkSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, readdirSync, unlinkSync, existsSync, mkdirSync, statSync } from 'fs';
 import { join, resolve } from 'path';
 import express from 'express';
 import * as yaml from 'yaml';
 import { dashboardPage, journeyFormPage, suiteFormPage } from './ui-templates.js';
+import { validateJourneyData, validateSuiteData } from './validation.js';
+import { startJourneyRun, getJob, getActiveRun } from './run-manager.js';
 
 const JOURNEYS_DIR = resolve('journeys');
 const SUITES_DIR = resolve('suites');
+const REPORTS_DIR = resolve('reports');
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -28,6 +31,39 @@ function readYaml(filePath: string): unknown {
 
 function writeYaml(filePath: string, data: unknown): void {
   writeFileSync(filePath, yaml.stringify(data, { lineWidth: 120 }), 'utf-8');
+}
+
+export interface ReportSummary {
+  filename: string;
+  name: string;
+  type: 'journey' | 'suite';
+  timestamp: string;
+  sizeKb: number;
+}
+
+function listReportFiles(): ReportSummary[] {
+  if (!existsSync(REPORTS_DIR)) return [];
+  return readdirSync(REPORTS_DIR)
+    .filter(f => f.endsWith('.html'))
+    .map(filename => {
+      const filePath = join(REPORTS_DIR, filename);
+      const stat = statSync(filePath);
+      const isSuite = filename.startsWith('suite_');
+      // Parse name from filename: name_2024-01-01T00-00-00.html
+      const namepart = filename.replace(/\.html$/, '').replace(/_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}$/, '');
+      const displayName = (isSuite ? namepart.replace(/^suite_/, '') : namepart).replace(/_/g, ' ');
+      // Parse timestamp from filename
+      const tsMatch = filename.match(/(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})\.html$/);
+      const timestamp = tsMatch ? tsMatch[1].replace(/-/g, (m, i) => i > 9 ? ':' : m) : stat.mtime.toISOString();
+      return {
+        filename,
+        name: displayName,
+        type: isSuite ? 'suite' as const : 'journey' as const,
+        timestamp,
+        sizeKb: Math.round(stat.size / 1024),
+      };
+    })
+    .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 }
 
 interface JourneyData {
@@ -101,6 +137,10 @@ export function startUIServer(port: number): void {
   // Ensure directories exist
   if (!existsSync(JOURNEYS_DIR)) mkdirSync(JOURNEYS_DIR, { recursive: true });
   if (!existsSync(SUITES_DIR)) mkdirSync(SUITES_DIR, { recursive: true });
+  if (!existsSync(REPORTS_DIR)) mkdirSync(REPORTS_DIR, { recursive: true });
+
+  // Serve report HTML files as static assets
+  app.use('/reports', express.static(REPORTS_DIR));
 
   // ── Page routes ──
 
@@ -123,7 +163,8 @@ export function startUIServer(port: number): void {
         return { filename, name: filename, journeyCount: 0 };
       }
     });
-    res.send(dashboardPage(journeys, suites));
+    const reports = listReportFiles();
+    res.send(dashboardPage(journeys, suites, reports));
   });
 
   app.get('/journeys/new', (_req, res) => {
@@ -204,6 +245,8 @@ export function startUIServer(port: number): void {
   app.post('/api/journeys', (req, res) => {
     try {
       const { data, filename: rawFilename } = req.body;
+      const errors = validateJourneyData(data || {});
+      if (errors.length > 0) { res.status(400).json({ errors }); return; }
       const filename = sanitizeFilename(rawFilename || data?._filename || '');
       const filePath = join(JOURNEYS_DIR, filename);
       if (existsSync(filePath)) { res.status(409).send('File already exists'); return; }
@@ -220,6 +263,8 @@ export function startUIServer(port: number): void {
       const filename = req.params.filename;
       const filePath = join(JOURNEYS_DIR, filename);
       if (!existsSync(filePath)) { res.status(404).send('Not found'); return; }
+      const errors = validateJourneyData(req.body.data || {});
+      if (errors.length > 0) { res.status(400).json({ errors }); return; }
       const toWrite = buildJourneyYaml(req.body.data);
       writeYaml(filePath, toWrite);
       res.json({ filename });
@@ -265,6 +310,8 @@ export function startUIServer(port: number): void {
   app.post('/api/suites', (req, res) => {
     try {
       const { data, filename: rawFilename } = req.body;
+      const errors = validateSuiteData(data || {});
+      if (errors.length > 0) { res.status(400).json({ errors }); return; }
       const filename = sanitizeFilename(rawFilename || data?._filename || '');
       const filePath = join(SUITES_DIR, filename);
       if (existsSync(filePath)) { res.status(409).send('File already exists'); return; }
@@ -281,6 +328,8 @@ export function startUIServer(port: number): void {
       const filename = req.params.filename;
       const filePath = join(SUITES_DIR, filename);
       if (!existsSync(filePath)) { res.status(404).send('Not found'); return; }
+      const errors = validateSuiteData(req.body.data || {});
+      if (errors.length > 0) { res.status(400).json({ errors }); return; }
       const toWrite = buildSuiteYaml(req.body.data);
       writeYaml(filePath, toWrite);
       res.json({ filename });
@@ -300,6 +349,32 @@ export function startUIServer(port: number): void {
 
   app.get('/api/journey-files', (_req, res) => {
     res.json(listYamlFiles(JOURNEYS_DIR));
+  });
+
+  // ── API routes: Reports ──
+
+  app.get('/api/reports', (_req, res) => {
+    res.json(listReportFiles());
+  });
+
+  // ── API routes: Run ──
+
+  app.post('/api/run/journey/:filename', (req, res) => {
+    const filename = req.params.filename;
+    const filePath = join(JOURNEYS_DIR, filename);
+    if (!existsSync(filePath)) { res.status(404).send('Journey not found'); return; }
+
+    const active = getActiveRun();
+    if (active) { res.status(409).json({ error: 'A run is already active', runId: active.id }); return; }
+
+    const runId = startJourneyRun(filename);
+    res.json({ runId });
+  });
+
+  app.get('/api/run/:id', (req, res) => {
+    const job = getJob(req.params.id);
+    if (!job) { res.status(404).json({ error: 'Run not found' }); return; }
+    res.json(job);
   });
 
   // ── Start ──

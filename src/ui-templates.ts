@@ -13,6 +13,14 @@ interface SuiteSummary {
   journeyCount: number;
 }
 
+export interface ReportSummary {
+  filename: string;
+  name: string;
+  type: 'journey' | 'suite';
+  timestamp: string;
+  sizeKb: number;
+}
+
 interface JourneyData {
   name: string;
   description?: string;
@@ -71,6 +79,8 @@ function layout(title: string, body: string): string {
   .btn-danger:hover { background: #b02a37; }
   .btn-secondary { background: #e9ecef; color: #333; }
   .btn-secondary:hover { background: #d3d7db; }
+  .btn-success { background: #198754; color: #fff; }
+  .btn-success:hover { background: #146c43; }
   .btn-sm { padding: 4px 10px; font-size: 13px; }
   label { display: block; font-weight: 600; margin-bottom: 4px; margin-top: 16px; font-size: 14px; }
   input[type="text"], input[type="number"], input[type="url"], textarea, select {
@@ -88,6 +98,24 @@ function layout(title: string, body: string): string {
   .toast { position: fixed; top: 20px; right: 20px; background: #333; color: #fff;
            padding: 12px 20px; border-radius: 6px; display: none; z-index: 999; }
   .toast.error { background: #dc3545; }
+  .field-error { color: #dc3545; font-size: 13px; margin-top: 2px; }
+  .run-banner { background: #fff; border: 2px solid #0066cc; border-radius: 8px; padding: 16px 20px;
+                margin-bottom: 24px; display: none; }
+  .run-banner.active { display: block; }
+  .run-banner.completed { border-color: #198754; }
+  .run-banner.failed { border-color: #dc3545; }
+  .run-banner-content { display: flex; align-items: center; gap: 12px; }
+  .run-spinner { width: 20px; height: 20px; border: 3px solid #e9ecef; border-top: 3px solid #0066cc;
+                 border-radius: 50%; animation: spin 1s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .run-info { flex: 1; }
+  .run-info strong { font-size: 15px; }
+  .run-info .run-detail { font-size: 13px; color: #666; margin-top: 2px; }
+  .run-actions { display: flex; gap: 8px; align-items: center; }
+  .badge-type { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px;
+                font-weight: 600; text-transform: uppercase; }
+  .badge-type.journey { background: #e8f4fd; color: #0066cc; }
+  .badge-type.suite { background: #f0e8fd; color: #6f42c1; }
 </style>
 </head>
 <body>
@@ -105,7 +133,7 @@ ${body}
 </html>`;
 }
 
-export function dashboardPage(journeys: JourneySummary[], suites: SuiteSummary[]): string {
+export function dashboardPage(journeys: JourneySummary[], suites: SuiteSummary[], reports: ReportSummary[] = []): string {
   const journeyRows = journeys.length === 0
     ? `<tr><td colspan="4" class="empty-state">No journeys yet. Create one to get started.</td></tr>`
     : journeys.map(j => `<tr>
@@ -113,6 +141,7 @@ export function dashboardPage(journeys: JourneySummary[], suites: SuiteSummary[]
         <td>${esc(j.url)}</td>
         <td>${j.stepCount}</td>
         <td class="actions">
+          <button class="btn btn-success btn-sm run-btn" onclick="runJourney('${esc(j.filename)}')">Run</button>
           <a href="/journeys/${esc(j.filename)}/edit" class="btn btn-secondary btn-sm">Edit</a>
           <button class="btn btn-danger btn-sm" onclick="deleteItem('journeys','${esc(j.filename)}')">Delete</button>
         </td>
@@ -129,7 +158,28 @@ export function dashboardPage(journeys: JourneySummary[], suites: SuiteSummary[]
         </td>
       </tr>`).join('\n');
 
+  const reportRows = reports.length === 0
+    ? `<tr><td colspan="4" class="empty-state">No reports yet. Run a journey to generate one.</td></tr>`
+    : reports.map(r => `<tr>
+        <td>${esc(r.name)}</td>
+        <td><span class="badge-type ${r.type}">${r.type}</span></td>
+        <td>${esc(r.timestamp)}</td>
+        <td class="actions">
+          <a href="/reports/${esc(r.filename)}" target="_blank" class="btn btn-secondary btn-sm">View</a>
+        </td>
+      </tr>`).join('\n');
+
   return layout('Dashboard', `
+<div id="run-banner" class="run-banner">
+  <div class="run-banner-content">
+    <div class="run-spinner" id="run-spinner"></div>
+    <div class="run-info">
+      <strong id="run-title">Running journey...</strong>
+      <div class="run-detail" id="run-detail">Starting...</div>
+    </div>
+    <div class="run-actions" id="run-actions"></div>
+  </div>
+</div>
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center">
     <h2>Journeys</h2>
@@ -150,20 +200,134 @@ export function dashboardPage(journeys: JourneySummary[], suites: SuiteSummary[]
     <tbody>${suiteRows}</tbody>
   </table>
 </div>
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <h2>Reports</h2>
+  </div>
+  <table>
+    <thead><tr><th>Name</th><th>Type</th><th>Date</th><th>Actions</th></tr></thead>
+    <tbody>${reportRows}</tbody>
+  </table>
+</div>
 <script>
+let _pollTimer = null;
+let _elapsedTimer = null;
+let _startTime = null;
+
 async function deleteItem(type, filename) {
   if (!confirm('Delete ' + filename + '?')) return;
   const res = await fetch('/api/' + type + '/' + encodeURIComponent(filename), { method: 'DELETE' });
   if (res.ok) { location.reload(); }
   else { showToast('Delete failed: ' + (await res.text()), true); }
 }
+
 function showToast(msg, isError) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'toast' + (isError ? ' error' : '');
   t.style.display = 'block';
-  setTimeout(() => { t.style.display = 'none'; }, 3000);
+  setTimeout(() => { t.style.display = 'none'; }, 4000);
 }
+
+function setRunButtonsDisabled(disabled) {
+  document.querySelectorAll('.run-btn').forEach(btn => {
+    btn.disabled = disabled;
+    btn.style.opacity = disabled ? '0.5' : '1';
+    btn.style.pointerEvents = disabled ? 'none' : 'auto';
+  });
+}
+
+async function runJourney(filename) {
+  setRunButtonsDisabled(true);
+  try {
+    const res = await fetch('/api/run/journey/' + encodeURIComponent(filename), { method: 'POST' });
+    if (res.status === 409) {
+      const body = await res.json();
+      showToast('A run is already in progress.', true);
+      showRunProgress(body.runId);
+      return;
+    }
+    if (!res.ok) {
+      showToast('Failed to start run: ' + (await res.text()), true);
+      setRunButtonsDisabled(false);
+      return;
+    }
+    const { runId } = await res.json();
+    showRunProgress(runId);
+  } catch (e) {
+    showToast('Error starting run: ' + e.message, true);
+    setRunButtonsDisabled(false);
+  }
+}
+
+function showRunProgress(runId) {
+  const banner = document.getElementById('run-banner');
+  const title = document.getElementById('run-title');
+  const detail = document.getElementById('run-detail');
+  const spinner = document.getElementById('run-spinner');
+  const actions = document.getElementById('run-actions');
+
+  banner.className = 'run-banner active';
+  title.textContent = 'Running journey...';
+  detail.textContent = 'Starting...';
+  spinner.style.display = 'block';
+  actions.innerHTML = '';
+  _startTime = Date.now();
+
+  _elapsedTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - _startTime) / 1000);
+    const mins = Math.floor(elapsed / 60);
+    const secs = elapsed % 60;
+    detail.textContent = 'Elapsed: ' + (mins > 0 ? mins + 'm ' : '') + secs + 's';
+  }, 1000);
+
+  setRunButtonsDisabled(true);
+
+  _pollTimer = setInterval(async () => {
+    try {
+      const res = await fetch('/api/run/' + encodeURIComponent(runId));
+      if (!res.ok) return;
+      const job = await res.json();
+
+      if (job.status === 'running') return;
+
+      clearInterval(_pollTimer);
+      clearInterval(_elapsedTimer);
+      _pollTimer = null;
+      _elapsedTimer = null;
+
+      spinner.style.display = 'none';
+      setRunButtonsDisabled(false);
+
+      if (job.status === 'completed') {
+        banner.className = 'run-banner active completed';
+        const s = job.summary;
+        title.textContent = 'Run completed — ' + (s.status === 'passed' ? 'PASSED' : s.status === 'failed' ? 'FAILED' : 'WARNING');
+        detail.textContent = s.passed + '/' + s.totalSteps + ' steps passed, ' + s.failed + ' failed';
+        if (job.reportUrl) {
+          actions.innerHTML = '<a href="' + job.reportUrl + '" target="_blank" class="btn btn-primary btn-sm">View Report</a>';
+        }
+      } else {
+        banner.className = 'run-banner active failed';
+        title.textContent = 'Run failed';
+        detail.textContent = job.error || 'Unknown error';
+      }
+    } catch (e) {
+      // Network error during poll — keep polling
+    }
+  }, 2000);
+}
+
+// Check for ?runId= param to resume polling
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const runId = params.get('runId');
+  if (runId) {
+    showRunProgress(runId);
+    // Clean up URL
+    window.history.replaceState({}, '', '/');
+  }
+})();
 </script>
 `);
 }
@@ -190,12 +354,14 @@ export function journeyFormPage(journey: JourneyData | null, filename: string | 
 
     <label for="name">Name</label>
     <input type="text" id="name" value="${esc(j.name)}" required>
+    <div class="field-error" id="error-name"></div>
 
     <label for="description">Description</label>
     <textarea id="description">${esc(j.description || '')}</textarea>
 
     <label for="url">URL</label>
     <input type="text" id="url" value="${esc(j.url)}" required placeholder="https://example.com">
+    <div class="field-error" id="error-url"></div>
     <div class="form-help">Supports variables like {{base_url}}</div>
 
     <label>Viewport (optional)</label>
@@ -210,11 +376,13 @@ export function journeyFormPage(journey: JourneyData | null, filename: string | 
     <button type="button" class="btn btn-secondary btn-sm" onclick="addVariable()" style="margin-top:4px">+ Add Variable</button>
 
     <label>Steps</label>
+    <div class="field-error" id="error-steps"></div>
     <div id="steps-container">${stepItems}</div>
     <button type="button" class="btn btn-secondary btn-sm" onclick="addStep()" style="margin-top:4px">+ Add Step</button>
 
     <div style="margin-top:24px;display:flex;gap:8px">
       <button type="button" class="btn btn-primary" onclick="save()">Save</button>
+      ${isEdit ? `<button type="button" class="btn btn-success" onclick="saveAndRun()">Save &amp; Run</button>` : ''}
       <a href="/" class="btn btn-secondary">Cancel</a>
       ${isEdit ? `<button type="button" class="btn btn-danger" style="margin-left:auto" onclick="deleteItem()">Delete</button>` : ''}
     </div>
@@ -325,19 +493,35 @@ function collectData() {
   return data;
 }
 
-async function save() {
-  const data = collectData();
-  if (!data.name || !data.url || !data.steps.length) {
-    showToast('Name, URL, and at least one step are required.', true);
-    return;
+function clearErrors() {
+  document.querySelectorAll('.field-error').forEach(el => { el.textContent = ''; });
+}
+
+function showFieldErrors(errors) {
+  clearErrors();
+  for (const err of errors) {
+    // Map field names to DOM error elements
+    let id = null;
+    if (err.field === 'name') id = 'error-name';
+    else if (err.field === 'url') id = 'error-url';
+    else if (err.field === 'steps' || err.field.startsWith('steps[')) id = 'error-steps';
+    if (id) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = (el.textContent ? el.textContent + ' ' : '') + err.message;
+    }
   }
+}
+
+async function save(redirectTo) {
+  clearErrors();
+  const data = collectData();
   let url, method;
   if (IS_EDIT) {
     url = '/api/journeys/' + encodeURIComponent(ORIGINAL_FILENAME);
     method = 'PUT';
   } else {
     const fn = document.getElementById('filename').value.trim();
-    if (!fn) { showToast('Filename is required.', true); return; }
+    if (!fn) { showToast('Filename is required.', true); return false; }
     url = '/api/journeys';
     method = 'POST';
     data._filename = fn;
@@ -347,8 +531,65 @@ async function save() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ data, filename: IS_EDIT ? undefined : data._filename }),
   });
-  if (res.ok) { window.location.href = '/'; }
-  else { showToast('Save failed: ' + (await res.text()), true); }
+  if (res.ok) {
+    if (redirectTo) { window.location.href = redirectTo; }
+    else { window.location.href = '/'; }
+    return true;
+  }
+  // Try to parse validation errors
+  const contentType = res.headers.get('content-type') || '';
+  if (res.status === 400 && contentType.includes('json')) {
+    try {
+      const body = await res.json();
+      if (body.errors && Array.isArray(body.errors)) {
+        showFieldErrors(body.errors);
+        return false;
+      }
+    } catch {}
+  }
+  showToast('Save failed: ' + (await res.text()), true);
+  return false;
+}
+
+async function saveAndRun() {
+  clearErrors();
+  const data = collectData();
+  // Save first
+  let url, method;
+  if (IS_EDIT) {
+    url = '/api/journeys/' + encodeURIComponent(ORIGINAL_FILENAME);
+    method = 'PUT';
+  } else {
+    return; // Should not happen — button only shown in edit mode
+  }
+  const saveRes = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data }),
+  });
+  if (!saveRes.ok) {
+    const contentType = saveRes.headers.get('content-type') || '';
+    if (saveRes.status === 400 && contentType.includes('json')) {
+      try {
+        const body = await saveRes.json();
+        if (body.errors && Array.isArray(body.errors)) { showFieldErrors(body.errors); return; }
+      } catch {}
+    }
+    showToast('Save failed: ' + (await saveRes.text()), true);
+    return;
+  }
+  // Start run
+  const runRes = await fetch('/api/run/journey/' + encodeURIComponent(ORIGINAL_FILENAME), { method: 'POST' });
+  if (runRes.status === 409) {
+    showToast('A run is already in progress.', true);
+    return;
+  }
+  if (!runRes.ok) {
+    showToast('Failed to start run: ' + (await runRes.text()), true);
+    return;
+  }
+  const { runId } = await runRes.json();
+  window.location.href = '/?runId=' + encodeURIComponent(runId);
 }
 
 async function deleteItem() {
@@ -363,7 +604,7 @@ function showToast(msg, isError) {
   t.textContent = msg;
   t.className = 'toast' + (isError ? ' error' : '');
   t.style.display = 'block';
-  setTimeout(() => { t.style.display = 'none'; }, 3000);
+  setTimeout(() => { t.style.display = 'none'; }, 4000);
 }
 </script>
 `);
@@ -418,6 +659,7 @@ export function suiteFormPage(suite: SuiteData | null, filename: string | null, 
 
     <label for="name">Name</label>
     <input type="text" id="name" value="${esc(s.name)}" required>
+    <div class="field-error" id="error-name"></div>
 
     <label for="description">Description</label>
     <textarea id="description">${esc(s.description || '')}</textarea>
@@ -427,6 +669,7 @@ export function suiteFormPage(suite: SuiteData | null, filename: string | null, 
     <button type="button" class="btn btn-secondary btn-sm" onclick="addVariable()" style="margin-top:4px">+ Add Variable</button>
 
     <label>Journeys</label>
+    <div class="field-error" id="error-journeys"></div>
     <div id="journeys-container">${journeyItems}</div>
     <button type="button" class="btn btn-secondary btn-sm" onclick="addJourney()" style="margin-top:4px">+ Add Journey</button>
 
@@ -553,12 +796,26 @@ function collectData() {
   return data;
 }
 
-async function save() {
-  const data = collectData();
-  if (!data.name || !data.journeys.length) {
-    showToast('Name and at least one journey are required.', true);
-    return;
+function clearErrors() {
+  document.querySelectorAll('.field-error').forEach(el => { el.textContent = ''; });
+}
+
+function showFieldErrors(errors) {
+  clearErrors();
+  for (const err of errors) {
+    let id = null;
+    if (err.field === 'name') id = 'error-name';
+    else if (err.field === 'journeys' || err.field.startsWith('journeys[')) id = 'error-journeys';
+    if (id) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = (el.textContent ? el.textContent + ' ' : '') + err.message;
+    }
   }
+}
+
+async function save() {
+  clearErrors();
+  const data = collectData();
   let url, method;
   if (IS_EDIT) {
     url = '/api/suites/' + encodeURIComponent(ORIGINAL_FILENAME);
@@ -575,8 +832,15 @@ async function save() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ data, filename: IS_EDIT ? undefined : data._filename }),
   });
-  if (res.ok) { window.location.href = '/'; }
-  else { showToast('Save failed: ' + (await res.text()), true); }
+  if (res.ok) { window.location.href = '/'; return; }
+  const contentType = res.headers.get('content-type') || '';
+  if (res.status === 400 && contentType.includes('json')) {
+    try {
+      const body = await res.json();
+      if (body.errors && Array.isArray(body.errors)) { showFieldErrors(body.errors); return; }
+    } catch {}
+  }
+  showToast('Save failed: ' + (await res.text()), true);
 }
 
 async function deleteItem() {
@@ -591,7 +855,7 @@ function showToast(msg, isError) {
   t.textContent = msg;
   t.className = 'toast' + (isError ? ' error' : '');
   t.style.display = 'block';
-  setTimeout(() => { t.style.display = 'none'; }, 3000);
+  setTimeout(() => { t.style.display = 'none'; }, 4000);
 }
 </script>
 `);
