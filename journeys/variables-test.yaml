@@ -1,0 +1,11 @@
+name: Wikipedia Variable Search
+description: Tests variable substitution in a search journey
+url: "{{base_url}}"
+variables:
+  base_url: https://en.wikipedia.org
+  search_term: quantum computing
+
+steps:
+  - action: Type "{{search_term}}" into the search box
+  - action: Click the search button
+  - action: Verify the page contains "{{search_term}}"

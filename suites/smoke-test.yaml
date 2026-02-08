@@ -1,0 +1,10 @@
+name: Wikipedia Smoke Test Suite
+description: Runs two Wikipedia search journeys with different search terms
+variables:
+  base_url: https://en.wikipedia.org
+
+journeys:
+  - path: ../journeys/variables-test.yaml
+    variables:
+      search_term: machine learning
+  - path: ../journeys/quick-test.yaml

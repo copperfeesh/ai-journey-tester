@@ -1,0 +1,8 @@
+name: Pause Step Test
+description: Tests the pause feature for manual interaction
+url: https://en.wikipedia.org
+
+steps:
+  - action: Type "artificial intelligence" into the search box
+  - action: pause "Inspect the page, then press Enter to continue"
+  - action: Click the search button
