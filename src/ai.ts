@@ -149,7 +149,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-function truncateAriaSnapshot(snapshot: string, maxLines: number = 150): string {
+export function truncateAriaSnapshot(snapshot: string, maxLines: number = 150): string {
   const lines = snapshot.split('\n');
   if (lines.length <= maxLines) return snapshot;
   return lines.slice(0, maxLines).join('\n') + `\n... (truncated, ${lines.length - maxLines} more lines)`;
@@ -182,7 +182,7 @@ STEP: ${step.action}${step.description ? ` (${step.description})` : ''}
 Call the appropriate action tool for this step. Also call report_ux_issues.`;
 }
 
-function isVisualStep(step: JourneyStep): boolean {
+export function isVisualStep(step: JourneyStep): boolean {
   const action = step.action.toLowerCase();
   return /\b(verify|check|confirm|ensure|assert|look|visual|layout|screenshot)\b/.test(action);
 }
@@ -309,7 +309,7 @@ export async function interpretStep(
   }
 }
 
-function parseUXReport(inp: any): AIStepInterpretation['uxAnalysis'] {
+export function parseUXReport(inp: any): AIStepInterpretation['uxAnalysis'] {
   let issues: UXIssue[] = [];
   try {
     const parsed = typeof inp.issues === 'string' ? JSON.parse(inp.issues) : inp.issues;

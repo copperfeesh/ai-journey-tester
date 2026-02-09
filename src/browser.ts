@@ -154,7 +154,7 @@ export async function executeBrowserAction(
   }
 }
 
-function resolveSelector(page: Page, selector: string) {
+export function resolveSelector(page: Page, selector: string) {
   // role=button[name="Submit"]
   const roleMatch = selector.match(/^role=(\w+)\[name="(.+)"\]$/);
   if (roleMatch) {

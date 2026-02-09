@@ -275,6 +275,23 @@ program
   });
 
 program
+  .command('record')
+  .description('Record browser interactions into a journey YAML file')
+  .argument('<url>', 'URL to start recording from')
+  .option('--name <name>', 'Journey name', 'Recorded Journey')
+  .option('--output <file>', 'Output YAML path')
+  .action(async (url: string, opts) => {
+    const slugName = opts.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    const output = opts.output || `journeys/${slugName}.yaml`;
+
+    const { recordJourney } = await import('./recorder.js');
+    await recordJourney({ url, name: opts.name, output });
+  });
+
+program
   .command('ui')
   .description('Start the web UI for managing journeys and suites')
   .option('--port <port>', 'Port to serve on', '3000')

@@ -55,6 +55,8 @@ function layout(title: string, body: string): string {
 <title>${esc(title)} — AI Journey Tester</title>
 <style>
   :root {
+    color-scheme: light dark;
+
     /* Brand colors */
     --brand-primary: #0066cc;
     --brand-primary-hover: #0052a3;
@@ -83,6 +85,86 @@ function layout(title: string, body: string): string {
     --focus-ring: rgba(0, 102, 204, 0.15);
 
     /* Badge colors */
+    --badge-journey-bg: #e8f4fd;
+    --badge-journey-text: #0066cc;
+    --badge-suite-bg: #f0e8fd;
+    --badge-suite-text: #6f42c1;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --brand-primary: #4da3ff;
+      --brand-primary-hover: #7dbdff;
+      --brand-header-bg: #0d0d1a;
+      --brand-header-text: #e0e0e0;
+      --brand-header-link: #80b3ff;
+      --brand-success: #2ecc71;
+      --brand-danger: #e74c3c;
+      --bg-page: #121218;
+      --bg-card: #1e1e2a;
+      --text-primary: #e0e0e0;
+      --text-secondary: #a0a0b0;
+      --text-muted: #707080;
+      --border-color: #2a2a3a;
+      --border-input: #3a3a4a;
+      --bg-secondary: #2a2a3a;
+      --bg-secondary-hover: #3a3a4a;
+      --bg-step: #1a1a26;
+      --border-step: #2a2a3a;
+      --focus-ring: rgba(77, 163, 255, 0.2);
+      --badge-journey-bg: #1a2a3a;
+      --badge-journey-text: #4da3ff;
+      --badge-suite-bg: #2a1a3a;
+      --badge-suite-text: #b08aff;
+    }
+  }
+
+  [data-theme="dark"] {
+    --brand-primary: #4da3ff;
+    --brand-primary-hover: #7dbdff;
+    --brand-header-bg: #0d0d1a;
+    --brand-header-text: #e0e0e0;
+    --brand-header-link: #80b3ff;
+    --brand-success: #2ecc71;
+    --brand-danger: #e74c3c;
+    --bg-page: #121218;
+    --bg-card: #1e1e2a;
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0b0;
+    --text-muted: #707080;
+    --border-color: #2a2a3a;
+    --border-input: #3a3a4a;
+    --bg-secondary: #2a2a3a;
+    --bg-secondary-hover: #3a3a4a;
+    --bg-step: #1a1a26;
+    --border-step: #2a2a3a;
+    --focus-ring: rgba(77, 163, 255, 0.2);
+    --badge-journey-bg: #1a2a3a;
+    --badge-journey-text: #4da3ff;
+    --badge-suite-bg: #2a1a3a;
+    --badge-suite-text: #b08aff;
+  }
+
+  [data-theme="light"] {
+    --brand-primary: #0066cc;
+    --brand-primary-hover: #0052a3;
+    --brand-header-bg: #1a1a2e;
+    --brand-header-text: #fff;
+    --brand-header-link: #a0c4ff;
+    --brand-success: #198754;
+    --brand-danger: #dc3545;
+    --bg-page: #f5f5f5;
+    --bg-card: #fff;
+    --text-primary: #333;
+    --text-secondary: #666;
+    --text-muted: #888;
+    --border-color: #eee;
+    --border-input: #ccc;
+    --bg-secondary: #e9ecef;
+    --bg-secondary-hover: #d3d7db;
+    --bg-step: #f8f9fa;
+    --border-step: #e9ecef;
+    --focus-ring: rgba(0, 102, 204, 0.15);
     --badge-journey-bg: #e8f4fd;
     --badge-journey-text: #0066cc;
     --badge-suite-bg: #f0e8fd;
@@ -151,12 +233,31 @@ function layout(title: string, body: string): string {
                 font-weight: 600; text-transform: uppercase; }
   .badge-type.journey { background: var(--badge-journey-bg); color: var(--badge-journey-text); }
   .badge-type.suite { background: var(--badge-suite-bg); color: var(--badge-suite-text); }
+
+  /* Dark mode enhancements */
+  [data-theme="dark"] .card,
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .card { box-shadow: 0 1px 3px rgba(0,0,0,.4); } }
+  [data-theme="dark"] .card { box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+
+  /* Theme toggle */
+  .theme-toggle { background: transparent; border: 1px solid var(--brand-header-link); color: var(--brand-header-link);
+                   padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; font-family: inherit;
+                   display: flex; align-items: center; gap: 4px; }
+  .theme-toggle:hover { background: rgba(255,255,255,0.1); }
 </style>
+<script>
+  // Apply saved theme immediately to prevent flash
+  (function(){
+    var t = localStorage.getItem('theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
 </head>
 <body>
 <header>
   <div class="container">
     <h1><a href="/" style="color:var(--brand-header-text)">AI Journey Tester</a></h1>
+    <button class="theme-toggle" id="theme-toggle" onclick="cycleTheme()" title="Toggle theme"></button>
     <nav><a href="/">Dashboard</a></nav>
   </div>
 </header>
@@ -164,6 +265,28 @@ function layout(title: string, body: string): string {
 ${body}
 </div>
 <div id="toast" class="toast"></div>
+<script>
+function cycleTheme() {
+  var current = localStorage.getItem('theme') || 'system';
+  var next = current === 'system' ? 'light' : current === 'light' ? 'dark' : 'system';
+  if (next === 'system') {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.removeItem('theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+  }
+  updateToggleLabel();
+}
+function updateToggleLabel() {
+  var btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  var t = localStorage.getItem('theme') || 'system';
+  var labels = { system: '\u2699\uFE0F System', light: '\u2600\uFE0F Light', dark: '\uD83C\uDF19 Dark' };
+  btn.textContent = labels[t] || labels.system;
+}
+updateToggleLabel();
+</script>
 </body>
 </html>`;
 }

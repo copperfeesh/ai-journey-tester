@@ -194,7 +194,7 @@ export async function executeJourney(
   return buildJourneyResult(journey, results, startedAt, startTime);
 }
 
-function buildJourneyResult(
+export function buildJourneyResult(
   journey: JourneyDefinition,
   steps: StepResult[],
   startedAt: string,
