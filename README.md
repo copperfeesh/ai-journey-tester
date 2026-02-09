@@ -75,6 +75,38 @@ npx tsx src/cli.ts run journeys/example.yaml --headed --verbose
 npx tsx src/cli.ts validate journeys/example.yaml
 ```
 
+### Record a journey from browser interactions
+
+Open a browser and record your clicks, typing, and navigation into a journey YAML file automatically:
+
+```bash
+npx tsx src/cli.ts record https://example.com
+npx tsx src/cli.ts record https://example.com --name "Login Flow" --output journeys/login.yaml
+```
+
+A headed Chromium window will open at the given URL. Interact with the page normally — clicks, form fills, dropdown selections, scrolling, and page navigations are all captured. When you're done, press **Ctrl+C** in the terminal. The recorder will:
+
+1. Coalesce raw events (e.g. a click on an input followed by typing becomes a single "Type into..." step)
+2. Convert each interaction into a natural language step
+3. Write the journey YAML file
+
+| Option | Default | Description |
+|---|---|---|
+| `--name <name>` | `Recorded Journey` | Name for the journey |
+| `--output <file>` | `journeys/<slugified-name>.yaml` | Output file path |
+
+**What gets captured:**
+- Clicks on buttons, links, and other elements
+- Text typed into input fields and textareas
+- Dropdown selections
+- Page scrolling (coalesced — consecutive scrolls in the same direction become one step)
+- Form submissions
+- Page navigations
+
+**Privacy:** Password field values are automatically redacted as `[password]`.
+
+The generated YAML can be run immediately with `npx tsx src/cli.ts run` or edited further in the Web UI.
+
 ### Run a test suite (multiple journeys)
 
 ```bash
