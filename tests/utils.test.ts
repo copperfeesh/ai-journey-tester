@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { parsePauseStep, escapeHtml, withRetry } from '../src/utils.js';
+import { parsePauseStep, escapeHtml, withRetry, safePath, validateNavigationUrl } from '../src/utils.js';
+import { resolve, sep } from 'path';
 
 describe('parsePauseStep', () => {
   it('returns default message for "pause"', () => {
@@ -131,5 +132,103 @@ describe('withRetry', () => {
     const result = await promise;
     expect(result).toBe('ok');
     expect(fn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('safePath', () => {
+  const baseDir = '/tmp/test-journeys';
+
+  it('resolves a valid filename', () => {
+    const result = safePath(baseDir, 'my-journey.yaml');
+    expect(result).toBe(resolve(baseDir, 'my-journey.yaml'));
+    expect(result.startsWith(resolve(baseDir) + sep)).toBe(true);
+  });
+
+  it('appends .yaml if missing', () => {
+    const result = safePath(baseDir, 'my-journey');
+    expect(result.endsWith('.yaml')).toBe(true);
+  });
+
+  it('rejects path traversal with ../', () => {
+    expect(() => safePath(baseDir, '../etc/passwd')).toThrow();
+  });
+
+  it('rejects absolute paths', () => {
+    expect(() => safePath(baseDir, '/etc/passwd.yaml')).toThrow();
+  });
+
+  it('rejects null bytes', () => {
+    expect(() => safePath(baseDir, 'journey\0.yaml')).toThrow('null bytes');
+  });
+
+  it('rejects empty filename', () => {
+    expect(() => safePath(baseDir, '')).toThrow('Invalid filename');
+  });
+
+  it('rejects filename that becomes empty after sanitization', () => {
+    expect(() => safePath(baseDir, '../../')).toThrow();
+  });
+});
+
+describe('validateNavigationUrl', () => {
+  it('allows http URLs', () => {
+    expect(() => validateNavigationUrl('http://example.com')).not.toThrow();
+  });
+
+  it('allows https URLs', () => {
+    expect(() => validateNavigationUrl('https://example.com')).not.toThrow();
+  });
+
+  it('rejects file: protocol', () => {
+    expect(() => validateNavigationUrl('file:///etc/passwd')).toThrow('Disallowed URL protocol');
+  });
+
+  it('rejects javascript: protocol', () => {
+    expect(() => validateNavigationUrl('javascript:alert(1)')).toThrow('Disallowed URL protocol');
+  });
+
+  it('rejects data: protocol', () => {
+    expect(() => validateNavigationUrl('data:text/html,<h1>hi</h1>')).toThrow('Disallowed URL protocol');
+  });
+
+  it('rejects localhost', () => {
+    expect(() => validateNavigationUrl('http://localhost:3000')).toThrow('private/internal');
+  });
+
+  it('rejects 127.x.x.x', () => {
+    expect(() => validateNavigationUrl('http://127.0.0.1')).toThrow('private/internal');
+  });
+
+  it('rejects 10.x.x.x', () => {
+    expect(() => validateNavigationUrl('http://10.0.0.1')).toThrow('private/internal');
+  });
+
+  it('rejects 192.168.x.x', () => {
+    expect(() => validateNavigationUrl('http://192.168.1.1')).toThrow('private/internal');
+  });
+
+  it('rejects 172.16-31.x.x', () => {
+    expect(() => validateNavigationUrl('http://172.16.0.1')).toThrow('private/internal');
+    expect(() => validateNavigationUrl('http://172.31.255.255')).toThrow('private/internal');
+  });
+
+  it('allows 172.32.x.x (not private)', () => {
+    expect(() => validateNavigationUrl('http://172.32.0.1')).not.toThrow();
+  });
+
+  it('rejects 169.254.x.x (link-local)', () => {
+    expect(() => validateNavigationUrl('http://169.254.169.254')).toThrow('private/internal');
+  });
+
+  it('rejects 0.0.0.0', () => {
+    expect(() => validateNavigationUrl('http://0.0.0.0')).toThrow('private/internal');
+  });
+
+  it('rejects ::1', () => {
+    expect(() => validateNavigationUrl('http://[::1]')).toThrow('private/internal');
+  });
+
+  it('rejects invalid URLs', () => {
+    expect(() => validateNavigationUrl('not-a-url')).toThrow('Invalid URL');
   });
 });

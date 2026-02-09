@@ -2,7 +2,7 @@ import { createInterface } from 'readline';
 import type { JourneyDefinition, CLIOptions, JourneyResult, StepResult } from './types.js';
 import { launchBrowser, capturePageState, executeBrowserAction, type BrowserSession } from './browser.js';
 import { interpretStep } from './ai.js';
-import { log, logStep, logStatus, parsePauseStep } from './utils.js';
+import { log, logStep, logStatus, parsePauseStep, validateNavigationUrl } from './utils.js';
 
 function waitForEnter(message: string): Promise<void> {
   return new Promise((resolve) => {
@@ -30,6 +30,7 @@ export async function executeJourney(
     externalSession.networkErrors.length = 0;
   }
 
+  validateNavigationUrl(journey.url);
   console.log(`  Navigating to ${journey.url}`);
   await session.page.goto(journey.url, {
     waitUntil: 'networkidle',

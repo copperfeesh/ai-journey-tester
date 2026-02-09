@@ -1,6 +1,6 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import type { PageState, ConsoleMessage, NetworkError, BrowserAction } from './types.js';
-import { log } from './utils.js';
+import { log, validateNavigationUrl } from './utils.js';
 
 export interface BrowserSession {
   browser: Browser;
@@ -92,6 +92,7 @@ export async function executeBrowserAction(
       break;
     }
     case 'navigate': {
+      validateNavigationUrl(action.url);
       await page.goto(action.url, { waitUntil: 'networkidle', timeout });
       break;
     }

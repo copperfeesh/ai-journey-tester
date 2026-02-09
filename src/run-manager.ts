@@ -1,8 +1,9 @@
-import { resolve, join } from 'path';
+import { resolve } from 'path';
 import { loadJourney } from './journey-loader.js';
 import { executeJourney } from './executor.js';
 import { generateReport } from './reporter.js';
 import { getConfig } from './config.js';
+import { safePath } from './utils.js';
 import type { CLIOptions } from './types.js';
 
 const JOURNEYS_DIR = resolve('journeys');
@@ -60,7 +61,7 @@ export function startJourneyRun(filename: string): string {
   // Fire and forget
   (async () => {
     try {
-      const filePath = join(JOURNEYS_DIR, filename);
+      const filePath = safePath(JOURNEYS_DIR, filename);
       const journey = loadJourney(filePath);
 
       const cfg = getConfig();

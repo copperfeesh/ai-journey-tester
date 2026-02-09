@@ -6,6 +6,7 @@ import { dashboardPage, journeyFormPage, suiteFormPage } from './ui-templates.js
 import { validateJourneyData, validateSuiteData } from './validation.js';
 import { startJourneyRun, getJob, getActiveRun } from './run-manager.js';
 import { getConfig } from './config.js';
+import { safePath } from './utils.js';
 
 const JOURNEYS_DIR = resolve('journeys');
 const SUITES_DIR = resolve('suites');
@@ -13,21 +14,13 @@ const REPORTS_DIR = resolve(getConfig().outputDir);
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-function sanitizeFilename(name: string): string {
-  // Strip path separators, reject traversal
-  let clean = name.replace(/[/\\]/g, '').replace(/\.\./g, '');
-  if (!clean.endsWith('.yaml')) clean += '.yaml';
-  if (!clean || clean === '.yaml') throw new Error('Invalid filename');
-  return clean;
-}
-
 function listYamlFiles(dir: string): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir).filter(f => f.endsWith('.yaml')).sort();
 }
 
 function readYaml(filePath: string): unknown {
-  return yaml.parse(readFileSync(filePath, 'utf-8'));
+  return yaml.parse(readFileSync(filePath, 'utf-8'), { maxAliasCount: 100 });
 }
 
 function writeYaml(filePath: string, data: unknown): void {
@@ -134,7 +127,25 @@ function expandJourneyRefs(raw: unknown[]): SuiteData['journeys'] {
 
 export function startUIServer(port: number): void {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: '100kb' }));
+
+  // Security headers
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    next();
+  });
+
+  // CSRF protection: require X-Requested-With header on mutating requests
+  app.use((req, res, next) => {
+    if (['POST', 'PUT', 'DELETE'].includes(req.method)) {
+      if (!req.headers['x-requested-with']) {
+        res.status(403).send('Forbidden: missing X-Requested-With header');
+        return;
+      }
+    }
+    next();
+  });
 
   // Ensure directories exist
   if (!existsSync(JOURNEYS_DIR)) mkdirSync(JOURNEYS_DIR, { recursive: true });
@@ -175,7 +186,8 @@ export function startUIServer(port: number): void {
 
   app.get('/journeys/:filename/edit', (req, res) => {
     const filename = req.params.filename;
-    const filePath = join(JOURNEYS_DIR, filename);
+    let filePath: string;
+    try { filePath = safePath(JOURNEYS_DIR, filename); } catch { res.status(400).send('Invalid filename'); return; }
     if (!existsSync(filePath)) { res.status(404).send('Not found'); return; }
     try {
       const raw = readYaml(filePath) as Record<string, unknown>;
@@ -200,7 +212,8 @@ export function startUIServer(port: number): void {
 
   app.get('/suites/:filename/edit', (req, res) => {
     const filename = req.params.filename;
-    const filePath = join(SUITES_DIR, filename);
+    let filePath: string;
+    try { filePath = safePath(SUITES_DIR, filename); } catch { res.status(400).send('Invalid filename'); return; }
     if (!existsSync(filePath)) { res.status(404).send('Not found'); return; }
     try {
       const raw = readYaml(filePath) as Record<string, unknown>;
@@ -234,7 +247,8 @@ export function startUIServer(port: number): void {
   });
 
   app.get('/api/journeys/:filename', (req, res) => {
-    const filePath = join(JOURNEYS_DIR, req.params.filename);
+    let filePath: string;
+    try { filePath = safePath(JOURNEYS_DIR, req.params.filename); } catch { res.status(400).send('Invalid filename'); return; }
     if (!existsSync(filePath)) { res.status(404).send('Not found'); return; }
     try {
       const raw = readYaml(filePath) as Record<string, unknown>;
@@ -250,8 +264,8 @@ export function startUIServer(port: number): void {
       const { data, filename: rawFilename } = req.body;
       const errors = validateJourneyData(data || {});
       if (errors.length > 0) { res.status(400).json({ errors }); return; }
-      const filename = sanitizeFilename(rawFilename || data?._filename || '');
-      const filePath = join(JOURNEYS_DIR, filename);
+      const filePath = safePath(JOURNEYS_DIR, rawFilename || data?._filename || '');
+      const filename = filePath.split('/').pop()!;
       if (existsSync(filePath)) { res.status(409).send('File already exists'); return; }
       const toWrite = buildJourneyYaml(data);
       writeYaml(filePath, toWrite);
@@ -264,7 +278,7 @@ export function startUIServer(port: number): void {
   app.put('/api/journeys/:filename', (req, res) => {
     try {
       const filename = req.params.filename;
-      const filePath = join(JOURNEYS_DIR, filename);
+      const filePath = safePath(JOURNEYS_DIR, filename);
       if (!existsSync(filePath)) { res.status(404).send('Not found'); return; }
       const errors = validateJourneyData(req.body.data || {});
       if (errors.length > 0) { res.status(400).json({ errors }); return; }
@@ -277,7 +291,8 @@ export function startUIServer(port: number): void {
   });
 
   app.delete('/api/journeys/:filename', (req, res) => {
-    const filePath = join(JOURNEYS_DIR, req.params.filename);
+    let filePath: string;
+    try { filePath = safePath(JOURNEYS_DIR, req.params.filename); } catch { res.status(400).send('Invalid filename'); return; }
     if (!existsSync(filePath)) { res.status(404).send('Not found'); return; }
     unlinkSync(filePath);
     res.json({ ok: true });
@@ -299,7 +314,8 @@ export function startUIServer(port: number): void {
   });
 
   app.get('/api/suites/:filename', (req, res) => {
-    const filePath = join(SUITES_DIR, req.params.filename);
+    let filePath: string;
+    try { filePath = safePath(SUITES_DIR, req.params.filename); } catch { res.status(400).send('Invalid filename'); return; }
     if (!existsSync(filePath)) { res.status(404).send('Not found'); return; }
     try {
       const raw = readYaml(filePath) as Record<string, unknown>;
@@ -315,8 +331,8 @@ export function startUIServer(port: number): void {
       const { data, filename: rawFilename } = req.body;
       const errors = validateSuiteData(data || {});
       if (errors.length > 0) { res.status(400).json({ errors }); return; }
-      const filename = sanitizeFilename(rawFilename || data?._filename || '');
-      const filePath = join(SUITES_DIR, filename);
+      const filePath = safePath(SUITES_DIR, rawFilename || data?._filename || '');
+      const filename = filePath.split('/').pop()!;
       if (existsSync(filePath)) { res.status(409).send('File already exists'); return; }
       const toWrite = buildSuiteYaml(data);
       writeYaml(filePath, toWrite);
@@ -329,7 +345,7 @@ export function startUIServer(port: number): void {
   app.put('/api/suites/:filename', (req, res) => {
     try {
       const filename = req.params.filename;
-      const filePath = join(SUITES_DIR, filename);
+      const filePath = safePath(SUITES_DIR, filename);
       if (!existsSync(filePath)) { res.status(404).send('Not found'); return; }
       const errors = validateSuiteData(req.body.data || {});
       if (errors.length > 0) { res.status(400).json({ errors }); return; }
@@ -342,7 +358,8 @@ export function startUIServer(port: number): void {
   });
 
   app.delete('/api/suites/:filename', (req, res) => {
-    const filePath = join(SUITES_DIR, req.params.filename);
+    let filePath: string;
+    try { filePath = safePath(SUITES_DIR, req.params.filename); } catch { res.status(400).send('Invalid filename'); return; }
     if (!existsSync(filePath)) { res.status(404).send('Not found'); return; }
     unlinkSync(filePath);
     res.json({ ok: true });
@@ -364,7 +381,8 @@ export function startUIServer(port: number): void {
 
   app.post('/api/run/journey/:filename', (req, res) => {
     const filename = req.params.filename;
-    const filePath = join(JOURNEYS_DIR, filename);
+    let filePath: string;
+    try { filePath = safePath(JOURNEYS_DIR, filename); } catch { res.status(400).send('Invalid filename'); return; }
     if (!existsSync(filePath)) { res.status(404).send('Journey not found'); return; }
 
     const active = getActiveRun();
@@ -382,7 +400,7 @@ export function startUIServer(port: number): void {
 
   // ── Start ──
 
-  app.listen(port, () => {
+  app.listen(port, '127.0.0.1', () => {
     console.log(`\nAI Journey Tester UI running at http://localhost:${port}\n`);
   });
 }

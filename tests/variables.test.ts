@@ -36,6 +36,53 @@ describe('resolveVariables', () => {
       resolveVariables({ x: '{{env:DEFINITELY_MISSING_VAR_XYZ}}' })
     ).toThrow('Environment variable "DEFINITELY_MISSING_VAR_XYZ" is not set');
   });
+
+  it('rejects sensitive env var ANTHROPIC_API_KEY', () => {
+    expect(() =>
+      resolveVariables({ x: '{{env:ANTHROPIC_API_KEY}}' })
+    ).toThrow('sensitive environment variable');
+  });
+
+  it('rejects sensitive env var DB_PASSWORD', () => {
+    expect(() =>
+      resolveVariables({ x: '{{env:DB_PASSWORD}}' })
+    ).toThrow('sensitive environment variable');
+  });
+
+  it('rejects sensitive env var MY_SECRET', () => {
+    expect(() =>
+      resolveVariables({ x: '{{env:MY_SECRET}}' })
+    ).toThrow('sensitive environment variable');
+  });
+
+  it('rejects sensitive env var AUTH_TOKEN', () => {
+    expect(() =>
+      resolveVariables({ x: '{{env:AUTH_TOKEN}}' })
+    ).toThrow('sensitive environment variable');
+  });
+
+  it('allows safe env vars like HOME', () => {
+    const envKey = 'AJT_TEST_SAFE_' + Date.now();
+    process.env[envKey] = 'safe-value';
+    try {
+      const result = resolveVariables({ x: `{{env:${envKey}}}` });
+      expect(result).toEqual({ x: 'safe-value' });
+    } finally {
+      delete process.env[envKey];
+    }
+  });
+
+  it('allows NODE_ENV', () => {
+    const origVal = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'test';
+    try {
+      const result = resolveVariables({ x: '{{env:NODE_ENV}}' });
+      expect(result).toEqual({ x: 'test' });
+    } finally {
+      if (origVal === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = origVal;
+    }
+  });
 });
 
 describe('substituteVariables', () => {

@@ -31,7 +31,7 @@ export function loadConfig(): Config {
   const configPath = resolve(CONFIG_FILENAME);
   if (existsSync(configPath)) {
     try {
-      const raw = yaml.parse(readFileSync(configPath, 'utf-8'));
+      const raw = yaml.parse(readFileSync(configPath, 'utf-8'), { maxAliasCount: 100 });
       if (raw && typeof raw === 'object') {
         if (typeof raw.model === 'string') config.model = raw.model;
         if (typeof raw.delay === 'number') config.delay = raw.delay;

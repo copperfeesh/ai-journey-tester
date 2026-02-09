@@ -12,6 +12,9 @@ export function resolveVariables(
     const envMatch = value.match(/^\{\{env:(\w+)\}\}$/);
     if (envMatch) {
       const envName = envMatch[1];
+      if (/^(.*_)?(KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL|AUTH)(_.*)?$/i.test(envName)) {
+        throw new Error(`Access to sensitive environment variable "${envName}" is not allowed`);
+      }
       const envValue = process.env[envName];
       if (envValue === undefined) {
         throw new Error(`Environment variable "${envName}" is not set (referenced by variable "${key}")`);

@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 import { writeFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 import * as yaml from 'yaml';
+import { validateNavigationUrl } from './utils.js';
 
 interface RawEvent {
   type: 'click' | 'input' | 'select' | 'scroll' | 'submit' | 'navigation';
@@ -244,6 +245,7 @@ export async function recordJourney(options: RecordOptions): Promise<string> {
     console.log(`  [${rawEvents.length}] Navigate to ${navUrl}`);
   });
 
+  validateNavigationUrl(url);
   await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
 
   // Wait for Ctrl+C

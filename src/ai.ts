@@ -309,13 +309,15 @@ export async function interpretStep(
   }
 }
 
+const VALID_SEVERITIES = new Set(['critical', 'warning', 'info']);
+
 export function parseUXReport(inp: any): AIStepInterpretation['uxAnalysis'] {
   let issues: UXIssue[] = [];
   try {
     const parsed = typeof inp.issues === 'string' ? JSON.parse(inp.issues) : inp.issues;
     if (Array.isArray(parsed)) {
       issues = parsed.map((i: any) => ({
-        severity: i.severity ?? 'info',
+        severity: VALID_SEVERITIES.has(i.severity) ? i.severity : 'info',
         category: i.category ?? 'usability',
         description: i.description ?? '',
         element: i.element,

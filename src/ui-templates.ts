@@ -374,7 +374,7 @@ let _startTime = null;
 
 async function deleteItem(type, filename) {
   if (!confirm('Delete ' + filename + '?')) return;
-  const res = await fetch('/api/' + type + '/' + encodeURIComponent(filename), { method: 'DELETE' });
+  const res = await fetch('/api/' + type + '/' + encodeURIComponent(filename), { method: 'DELETE', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
   if (res.ok) { location.reload(); }
   else { showToast('Delete failed: ' + (await res.text()), true); }
 }
@@ -398,7 +398,7 @@ function setRunButtonsDisabled(disabled) {
 async function runJourney(filename) {
   setRunButtonsDisabled(true);
   try {
-    const res = await fetch('/api/run/journey/' + encodeURIComponent(filename), { method: 'POST' });
+    const res = await fetch('/api/run/journey/' + encodeURIComponent(filename), { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
     if (res.status === 409) {
       const body = await res.json();
       showToast('A run is already in progress.', true);
@@ -686,7 +686,7 @@ async function save(redirectTo) {
   }
   const res = await fetch(url, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     body: JSON.stringify({ data, filename: IS_EDIT ? undefined : data._filename }),
   });
   if (res.ok) {
@@ -722,7 +722,7 @@ async function saveAndRun() {
   }
   const saveRes = await fetch(url, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     body: JSON.stringify({ data }),
   });
   if (!saveRes.ok) {
@@ -737,7 +737,7 @@ async function saveAndRun() {
     return;
   }
   // Start run
-  const runRes = await fetch('/api/run/journey/' + encodeURIComponent(ORIGINAL_FILENAME), { method: 'POST' });
+  const runRes = await fetch('/api/run/journey/' + encodeURIComponent(ORIGINAL_FILENAME), { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
   if (runRes.status === 409) {
     showToast('A run is already in progress.', true);
     return;
@@ -752,7 +752,7 @@ async function saveAndRun() {
 
 async function deleteItem() {
   if (!confirm('Delete this journey?')) return;
-  const res = await fetch('/api/journeys/' + encodeURIComponent(ORIGINAL_FILENAME), { method: 'DELETE' });
+  const res = await fetch('/api/journeys/' + encodeURIComponent(ORIGINAL_FILENAME), { method: 'DELETE', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
   if (res.ok) { window.location.href = '/'; }
   else { showToast('Delete failed: ' + (await res.text()), true); }
 }
@@ -987,7 +987,7 @@ async function save() {
   }
   const res = await fetch(url, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     body: JSON.stringify({ data, filename: IS_EDIT ? undefined : data._filename }),
   });
   if (res.ok) { window.location.href = '/'; return; }
@@ -1003,7 +1003,7 @@ async function save() {
 
 async function deleteItem() {
   if (!confirm('Delete this suite?')) return;
-  const res = await fetch('/api/suites/' + encodeURIComponent(ORIGINAL_FILENAME), { method: 'DELETE' });
+  const res = await fetch('/api/suites/' + encodeURIComponent(ORIGINAL_FILENAME), { method: 'DELETE', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
   if (res.ok) { window.location.href = '/'; }
   else { showToast('Delete failed: ' + (await res.text()), true); }
 }

@@ -5,7 +5,7 @@ import type { SuiteDefinition, SuiteJourneyRef } from './types.js';
 
 export function loadSuite(filePath: string): SuiteDefinition {
   const raw = readFileSync(filePath, 'utf-8');
-  const parsed = parse(raw);
+  const parsed = parse(raw, { maxAliasCount: 100 });
 
   if (!parsed || typeof parsed !== 'object') {
     throw new Error(`Invalid suite file: ${filePath} - must be a YAML object`);
@@ -23,15 +23,23 @@ export function loadSuite(filePath: string): SuiteDefinition {
 
   const journeys: SuiteJourneyRef[] = parsed.journeys.map((entry: unknown, i: number) => {
     if (typeof entry === 'string') {
-      return { path: resolve(suiteDir, entry) };
+      const resolved = resolve(suiteDir, entry);
+      if (!resolved.endsWith('.yaml')) {
+        throw new Error(`Journey ${i + 1}: path must end with .yaml`);
+      }
+      return { path: resolved };
     }
     if (entry && typeof entry === 'object' && 'path' in entry) {
       const e = entry as Record<string, unknown>;
       if (typeof e.path !== 'string') {
         throw new Error(`Journey ${i + 1}: "path" must be a string`);
       }
+      const resolvedPath = resolve(suiteDir, e.path);
+      if (!resolvedPath.endsWith('.yaml')) {
+        throw new Error(`Journey ${i + 1}: path must end with .yaml`);
+      }
       const ref: SuiteJourneyRef = {
-        path: resolve(suiteDir, e.path),
+        path: resolvedPath,
       };
       if (e.variables && typeof e.variables === 'object') {
         ref.variables = e.variables as Record<string, string>;

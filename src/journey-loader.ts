@@ -9,7 +9,7 @@ export function loadJourney(
   cliVars?: Record<string, string>
 ): JourneyDefinition {
   const raw = readFileSync(filePath, 'utf-8');
-  const parsed = parse(raw);
+  const parsed = parse(raw, { maxAliasCount: 100 });
 
   if (!parsed || typeof parsed !== 'object') {
     throw new Error(`Invalid journey file: ${filePath} - must be a YAML object`);
